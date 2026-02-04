@@ -107,6 +107,16 @@
                     &nbsp;&nbsp;&nbsp;• Zone:Read, DNS:Edit, Zone Settings:Edit
                 </div>
 
+                <div class="warning-message" style="margin: 15px 0;">
+                    <strong>⚠️ CORS-Problem:</strong><br>
+                    Browser blockieren direkte API-Aufrufe an Cloudflare (CORS-Policy).<br>
+                    <strong>Lösungen:</strong><br>
+                    1. <strong>Browser-Extension:</strong> Installiere "CORS Unblock" (nur für Tests)<br>
+                    2. <strong>CORS-Proxy:</strong> <input type="checkbox" id="enableCorsProxy"> 
+                       CORS-Proxy aktivieren (⚠️ Token läuft über Drittanbieter-Server!)<br>
+                    3. <strong>Cloudflare Worker:</strong> Sicherste Lösung - eigenen Proxy erstellen
+                </div>
+
                 <div id="tokenError" class="error-message" style="display: none;"></div>
                 <div id="tokenSuccess" class="success-message" style="display: none;"></div>
             </div>

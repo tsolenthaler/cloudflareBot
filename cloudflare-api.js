@@ -8,6 +8,11 @@ class CloudflareAPI {
         this.baseURL = 'https://api.cloudflare.com/client/v4';
         this.token = this.getStoredToken();
         this.accountId = null;
+        
+        // CORS Proxy (optional) - WARNUNG: Nur für Tests verwenden!
+        // Der Proxy kann potenziell deinen API-Token sehen
+        this.useCorsProxy = localStorage.getItem('use_cors_proxy') === 'true';
+        this.corsProxyURL = 'https://corsproxy.io/?';
     }
 
     /**
@@ -35,6 +40,29 @@ class CloudflareAPI {
     }
 
     /**
+     * Enable CORS proxy (WARNING: Security risk!)
+     */
+    enableCorsProxy() {
+        localStorage.setItem('use_cors_proxy', 'true');
+        this.useCorsProxy = true;
+    }
+
+    /**
+     * Disable CORS proxy
+     */
+    disableCorsProxy() {
+        localStorage.setItem('use_cors_proxy', 'false');
+        this.useCorsProxy = false;
+    }
+
+    /**
+     * Check if CORS proxy is enabled
+     */
+    isCorsProxyEnabled() {
+        return this.useCorsProxy;
+    }
+
+    /**
      * Check if token is configured
      */
     hasToken() {
@@ -49,7 +77,13 @@ class CloudflareAPI {
             throw new Error('API-Token nicht konfiguriert. Bitte konfiguriere zuerst deinen Token.');
         }
 
-        const url = `${this.baseURL}${endpoint}`;
+        let url = `${this.baseURL}${endpoint}`;
+        
+        // Apply CORS proxy if enabled
+        if (this.useCorsProxy) {
+            url = `${this.corsProxyURL}${encodeURIComponent(url)}`;
+        }
+        
         const headers = {
             'Authorization': `Bearer ${this.token}`,
             'Content-Type': 'application/json',

@@ -104,6 +104,25 @@ class CloudflareHelperApp {
             });
         }
 
+        // CORS Proxy toggle
+        const enableCorsProxy = document.getElementById('enableCorsProxy');
+        if (enableCorsProxy) {
+            enableCorsProxy.checked = cloudflareAPI.isCorsProxyEnabled();
+            enableCorsProxy.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    if (confirm('⚠️ WARNUNG: Der CORS-Proxy leitet deine API-Anfragen über einen Drittanbieter-Server.\n\nDein API-Token könnte potenziell vom Proxy-Betreiber eingesehen werden.\n\nNur für Tests verwenden!\n\nMöchtest du fortfahren?')) {
+                        cloudflareAPI.enableCorsProxy();
+                        this.addMessage('⚠️ CORS-Proxy wurde aktiviert. Verwende dies nur für Tests!', 'bot');
+                    } else {
+                        e.target.checked = false;
+                    }
+                } else {
+                    cloudflareAPI.disableCorsProxy();
+                    this.addMessage('✅ CORS-Proxy wurde deaktiviert.', 'bot');
+                }
+            });
+        }
+
         // Quick action buttons
         document.querySelectorAll('.quick-action-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
