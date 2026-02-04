@@ -18,6 +18,9 @@ Einen AI Bot der via WebChat bei Claudflare der die Verwaltung mehere Accounts, 
 * Mehere Weiterleitung können pro Domain eingerichtet werden.
 * Verlinkt direkt zur Regel der Domain in Cloudflare
 
+## Funktionen
+* Der API-Token von Cloudflare soll offline nur auf genutzt Browser gespeichert werden.
+
 # Dokumentation / Links
 
 ## Domain
