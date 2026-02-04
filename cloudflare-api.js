@@ -177,6 +177,39 @@ class CloudflareAPI {
     }
 
     /**
+     * Add/Create a new zone (domain)
+     * @param {string} domainName - Domain name to add (e.g., "example.com")
+     * @param {string} accountId - Account ID (optional, will use first account if not provided)
+     * @param {object} options - Additional options
+     */
+    async addZone(domainName, accountId = null, options = {}) {
+        // If no account ID provided, get the first available account
+        if (!accountId) {
+            const accounts = await this.getAccounts();
+            if (accounts.length === 0) {
+                throw new Error('Kein Account gefunden. Bitte gib eine Account-ID an.');
+            }
+            accountId = accounts[0].id;
+        }
+
+        const zoneData = {
+            name: domainName,
+            account: {
+                id: accountId
+            },
+            jump_start: options.jumpStart !== false, // Auto-detect DNS records
+            type: options.type || 'full' // full or partial
+        };
+
+        const response = await this.request('/zones', {
+            method: 'POST',
+            body: JSON.stringify(zoneData)
+        });
+        
+        return response.result;
+    }
+
+    /**
      * Get DNS records for a zone
      */
     async getDNSRecords(zoneId, options = {}) {

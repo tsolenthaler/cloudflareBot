@@ -37,6 +37,11 @@ class ChatBot {
             return await this.listZones();
         }
 
+        // Add domain
+        if (this.isAddDomainCommand(normalizedMessage)) {
+            return await this.addDomain(message);
+        }
+
         // List DNS records
         if (this.isListDNSCommand(normalizedMessage)) {
             return await this.listDNSRecords(message);
@@ -94,6 +99,15 @@ class ChatBot {
     isListZonesCommand(message) {
         return (message.includes('zeige') || message.includes('liste') || message.includes('alle')) &&
                (message.includes('domain') || message.includes('zone'));
+    }
+
+    /**
+     * Check if command is to add a domain
+     */
+    isAddDomainCommand(message) {
+        return (message.includes('füge') || message.includes('hinzu') || message.includes('erstelle') || message.includes('add')) &&
+               (message.includes('domain') || message.includes('zone')) &&
+               !message.includes('dns') && !message.includes('record') && !message.includes('eintrag');
     }
 
     /**
@@ -156,6 +170,8 @@ class ChatBot {
 
 <strong>Domain/Zone-Verwaltung:</strong><br>
 • "Zeige mir alle Domains" - Liste aller Zones<br>
+• "Füge Domain example.com hinzu" - Neue Domain hinzufügen<br>
+• "Erstelle Domain example.com" - Neue Domain erstellen<br>
 • "Info für example.com" - Details zu einer Zone<br><br>
 
 <strong>DNS-Verwaltung:</strong><br>
@@ -228,6 +244,93 @@ class ChatBot {
             return {
                 type: 'error',
                 message: `❌ Fehler beim Abrufen der Domains: ${error.message}`
+            };
+        }
+    }
+
+    /**
+     * Add a new domain/zone
+     */
+    async addDomain(message) {
+        try {
+            // Extract domain name from message
+            // Patterns: "Füge Domain example.com hinzu", "Erstelle Domain example.com"
+            const domainMatch = message.match(/(?:füge|hinzu|erstelle|add)\s+(?:domain\s+)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i) ||
+                              message.match(/([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s+(?:hinzufügen|erstellen)/i);
+
+            if (!domainMatch) {
+                return {
+                    type: 'error',
+                    message: `❌ Konnte Domain-Namen nicht aus der Nachricht extrahieren.<br><br>
+<strong>Beispiele:</strong><br>
+• "Füge Domain example.com hinzu"<br>
+• "Erstelle Domain example.com"<br>
+• "Add example.com"`
+                };
+            }
+
+            const domainName = domainMatch[1].toLowerCase();
+
+            // Validate domain name format
+            const domainRegex = /^[a-z0-9]+([-.]?[a-z0-9]+)*\.[a-z]{2,}$/;
+            if (!domainRegex.test(domainName)) {
+                return {
+                    type: 'error',
+                    message: `❌ Ungültiger Domain-Name: "${domainName}"<br><br>Bitte gib einen gültigen Domain-Namen ein (z.B. example.com)`
+                };
+            }
+
+            // Check if domain already exists
+            try {
+                const existingZone = await this.api.getZoneByName(domainName);
+                return {
+                    type: 'info',
+                    message: `ℹ️ Die Domain "${domainName}" existiert bereits in deinem Account.<br><br>
+<strong>Status:</strong> ${existingZone.status}<br>
+<strong>Zone-ID:</strong> <code>${existingZone.id}</code><br><br>
+<a href="${this.api.getZoneDashboardURL(existingZone.name, existingZone.account?.id)}" target="_blank">🔗 In Cloudflare öffnen</a>`
+                };
+            } catch (e) {
+                // Domain doesn't exist, continue with creation
+            }
+
+            // Get account ID from message or use first account
+            let accountId = null;
+            const accountMatch = message.match(/(?:account|account-id)\s+([a-f0-9]{32})/i);
+            if (accountMatch) {
+                accountId = accountMatch[1];
+            }
+
+            // Create the zone
+            const newZone = await this.api.addZone(domainName, accountId);
+
+            return {
+                type: 'success',
+                message: `
+✅ <strong>Domain erfolgreich hinzugefügt!</strong><br><br>
+<div class="info-card">
+    <div class="info-card-header">🎉 ${newZone.name}</div>
+    <div class="info-card-body">
+        <strong>Status:</strong> ${newZone.status}<br>
+        <strong>Zone-ID:</strong> <code>${newZone.id}</code><br>
+        ${newZone.account?.name ? `<strong>Account:</strong> ${newZone.account.name}<br>` : ''}<br>
+        <strong>Nächste Schritte:</strong><br>
+        1. Aktualisiere deine Nameserver bei deinem Domain-Registrar<br>
+        2. Nameserver:<br>
+        ${newZone.name_servers ? newZone.name_servers.map(ns => `&nbsp;&nbsp;&nbsp;• <code>${ns}</code>`).join('<br>') : ''}<br>
+    </div>
+    <div class="info-card-footer">
+        <a href="${this.api.getZoneDashboardURL(newZone.name, newZone.account?.id)}" target="_blank">🔗 In Cloudflare öffnen</a> | 
+        <a href="${this.api.getDNSDashboardURL(newZone.name, newZone.account?.id)}" target="_blank">DNS konfigurieren</a>
+    </div>
+</div>
+                `
+            };
+        } catch (error) {
+            return {
+                type: 'error',
+                message: `❌ Fehler beim Hinzufügen der Domain: ${error.message}<br><br>
+ℹ️ Stelle sicher, dass dein API-Token die Berechtigung "Zone:Edit" hat.`
             };
         }
     }
