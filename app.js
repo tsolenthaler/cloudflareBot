@@ -529,7 +529,7 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
     /**
      * Open AI configuration modal
      */
-    openAIConfigModal() {
+    async openAIConfigModal() {
         const aiConfigModal = document.getElementById('aiConfigModal');
         if (!aiConfigModal) return;
 
@@ -551,6 +551,9 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         if (aiEnabled) aiEnabled.checked = config.enabled || false;
         if (aiModel) aiModel.value = config.model || '@cf/meta/llama-3.1-8b-instruct';
         if (aiGatewayName) aiGatewayName.value = config.gatewayName || '';
+
+        // Load accounts
+        await this.loadAccountsForAI(config.accountId);
 
         // Show current config if exists
         if (config.enabled) {
@@ -580,6 +583,7 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
     async saveAIConfig() {
         const aiEnabled = document.getElementById('aiEnabled');
         const aiModel = document.getElementById('aiModel');
+        const aiAccount = document.getElementById('aiAccount');
         const aiGatewayName = document.getElementById('aiGatewayName');
         const aiError = document.getElementById('aiError');
         const aiSuccess = document.getElementById('aiSuccess');
@@ -593,6 +597,7 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         const config = {
             enabled: aiEnabled.checked,
             model: aiModel.value,
+            accountId: aiAccount && aiAccount.value ? aiAccount.value : null,
             gatewayName: aiGatewayName ? aiGatewayName.value.trim() : null
         };
 
@@ -726,6 +731,7 @@ Antwort: ${result.response}
             aiConfigDetails.innerHTML = `
 Status: <strong style="color: green;">Aktiviert</strong><br>
 Modell: ${config.model}<br>
+${config.accountId ? `Account ID: ${config.accountId}<br>` : ''}
 ${config.gatewayName ? `Gateway: ${config.gatewayName}<br>` : ''}
 ${config.gatewayId ? `Gateway ID: ${config.gatewayId}` : ''}
             `;
@@ -747,6 +753,56 @@ ${config.gatewayId ? `Gateway ID: ${config.gatewayId}` : ''}
                 statusSpan.textContent = '🤖 AI aktiv';
             } else {
                 statusSpan.textContent = '🤖 AI konfigurieren';
+            }
+        }
+    }
+
+    /**
+     * Load accounts for AI configuration
+     */
+    async loadAccountsForAI(selectedAccountId = null) {
+        const aiAccount = document.getElementById('aiAccount');
+        const aiAccountInfo = document.getElementById('aiAccountInfo');
+        
+        if (!aiAccount) return;
+
+        try {
+            aiAccount.innerHTML = '<option value="">Laden...</option>';
+            
+            const accounts = await this.api.getAccounts();
+            
+            if (accounts.length === 0) {
+                aiAccount.innerHTML = '<option value="">Keine Accounts gefunden</option>';
+                if (aiAccountInfo) {
+                    aiAccountInfo.textContent = '⚠️ Keine Accounts verfügbar';
+                    aiAccountInfo.style.color = 'red';
+                }
+                return;
+            }
+
+            // Populate select with accounts
+            aiAccount.innerHTML = accounts.map(account => 
+                `<option value="${account.id}" ${account.id === selectedAccountId ? 'selected' : ''}>
+                    ${account.name} (${account.id})
+                </option>`
+            ).join('');
+
+            // Show info
+            if (aiAccountInfo) {
+                aiAccountInfo.textContent = `${accounts.length} Account(s) verfügbar`;
+                aiAccountInfo.style.color = '#666';
+            }
+
+            // If no account was selected, select the first one
+            if (!selectedAccountId && accounts.length > 0) {
+                aiAccount.value = accounts[0].id;
+            }
+        } catch (error) {
+            console.error('Error loading accounts:', error);
+            aiAccount.innerHTML = '<option value="">Fehler beim Laden</option>';
+            if (aiAccountInfo) {
+                aiAccountInfo.textContent = `❌ ${error.message}`;
+                aiAccountInfo.style.color = 'red';
             }
         }
     }

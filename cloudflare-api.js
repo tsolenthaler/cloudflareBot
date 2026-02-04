@@ -57,6 +57,7 @@ class CloudflareAPI {
         return {
             enabled: false,
             model: '@cf/meta/llama-3.1-8b-instruct',
+            accountId: null,
             gatewayId: null,
             gatewayName: null
         };
@@ -588,14 +589,21 @@ class CloudflareAPI {
      * Create or get AI Gateway
      */
     async setupAIGateway(gatewayName = 'cloudflare-helper-gateway') {
-        // Ensure we have an account ID
-        if (!this.accountId) {
+        // Ensure we have an account ID (prefer from AI config, then cached, then fetch)
+        let targetAccountId = this.aiConfig.accountId || this.accountId;
+        
+        if (!targetAccountId) {
             const accounts = await this.getAccounts();
             if (accounts.length === 0) {
                 throw new Error('Kein Account gefunden. Stelle sicher, dass dein API-Token Zugriff auf mindestens einen Account hat.');
             }
-            this.accountId = accounts[0].id;
+            targetAccountId = accounts[0].id;
+            this.accountId = targetAccountId;
         }
+
+        // Temporarily use the target account ID for this operation
+        const originalAccountId = this.accountId;
+        this.accountId = targetAccountId;
 
         try {
             // Try to get existing gateways
@@ -611,6 +619,9 @@ class CloudflareAPI {
         } catch (error) {
             console.error('AI Gateway setup error:', error);
             throw error;
+        } finally {
+            // Restore original account ID
+            this.accountId = originalAccountId;
         }
     }
 
@@ -660,18 +671,21 @@ class CloudflareAPI {
      * Run AI inference using Workers AI
      */
     async runAI(messages, model = null) {
-        if (!this.accountId) {
+        // Use account ID from AI config or fallback to default
+        let targetAccountId = this.aiConfig.accountId || this.accountId;
+        
+        if (!targetAccountId) {
             const accounts = await this.getAccounts();
             if (accounts.length === 0) {
                 throw new Error('Kein Account gefunden');
             }
-            this.accountId = accounts[0].id;
+            targetAccountId = accounts[0].id;
         }
 
         const selectedModel = model || this.aiConfig.model || '@cf/meta/llama-3.1-8b-instruct';
 
         const response = await this.request(
-            `/accounts/${this.accountId}/ai/run/${selectedModel}`,
+            `/accounts/${targetAccountId}/ai/run/${selectedModel}`,
             {
                 method: 'POST',
                 body: JSON.stringify({
