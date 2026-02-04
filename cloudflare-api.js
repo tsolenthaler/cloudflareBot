@@ -190,26 +190,70 @@ class CloudflareAPI {
     }
 
     /**
-     * Get user information
+     * Check token permissions for Workers AI
      */
-    async getUserInfo() {
-        const response = await this.request('/user');
-        return response.result;
+    async checkAIPermissions() {
+        try {
+            const response = await this.request('/user/tokens/verify');
+            const token = response.result;
+            
+            // Check if token has the required permissions
+            const requiredPermissions = ['account:read', 'ai:read', 'ai:write'];
+            
+            if (!token.policies || token.policies.length === 0) {
+                return {
+                    hasPermissions: false,
+                    message: 'API-Token hat keine Berechtigungen definiert',
+                    requiredPermissions: requiredPermissions
+                };
+            }
+            
+            // Check for account access
+            const accountPolicy = token.policies.find(p => p.permission_groups?.some(g => g.name === 'Account'));
+            if (!accountPolicy) {
+                return {
+                    hasPermissions: false,
+                    message: 'API-Token hat keine Account-Berechtigungen',
+                    requiredPermissions: requiredPermissions
+                };
+            }
+            
+            return {
+                hasPermissions: true,
+                message: 'API-Token hat die erforderlichen Berechtigungen',
+                requiredPermissions: requiredPermissions
+            };
+        } catch (error) {
+            console.error('Error checking AI permissions:', error);
+            return {
+                hasPermissions: null,
+                message: `Berechtigungen konnten nicht überprüft werden: ${error.message}`,
+                requiredPermissions: ['account:read', 'ai:read', 'ai:write']
+            };
+        }
     }
 
     /**
      * Get all accounts
      */
     async getAccounts() {
-        const response = await this.request('/accounts');
-        const accounts = response.result;
-        
-        // Auto-save first account ID if not set
-        if (accounts.length > 0 && !this.accountId) {
-            this.accountId = accounts[0].id;
+        try {
+            const response = await this.request('/accounts');
+            const accounts = response.result;
+            
+            // Auto-save first account ID if not set
+            if (accounts.length > 0 && !this.accountId) {
+                this.accountId = accounts[0].id;
+            }
+            
+            return accounts;
+        } catch (error) {
+            console.error('Failed to fetch accounts:', error);
+            if (error.message.includes('Unauthorized') || error.message.includes('insufficient')) {
+                throw new Error('Dein API-Token hat keine Berechtigung für den Zugriff auf Accounts. Bitte überprüfe die Token-Berechtigungen (account:read erforderlich).');
+            }
+            throw new Error(`Accounts konnten nicht abgerufen werden: ${error.message}`);
         }
-        
-        return accounts;
     }
 
     /**
@@ -589,39 +633,47 @@ class CloudflareAPI {
      * Create or get AI Gateway
      */
     async setupAIGateway(gatewayName = 'cloudflare-helper-gateway') {
-        // Ensure we have an account ID (prefer from AI config, then cached, then fetch)
-        let targetAccountId = this.aiConfig.accountId || this.accountId;
-        
-        if (!targetAccountId) {
-            const accounts = await this.getAccounts();
-            if (accounts.length === 0) {
-                throw new Error('Kein Account gefunden. Stelle sicher, dass dein API-Token Zugriff auf mindestens einen Account hat.');
-            }
-            targetAccountId = accounts[0].id;
-            this.accountId = targetAccountId;
-        }
-
-        // Temporarily use the target account ID for this operation
-        const originalAccountId = this.accountId;
-        this.accountId = targetAccountId;
-
         try {
-            // Try to get existing gateways
-            const gateways = await this.getAIGateways();
-            const existing = gateways.find(g => g.name === gatewayName);
+            // Ensure we have an account ID (prefer from AI config, then cached, then fetch)
+            let targetAccountId = this.aiConfig.accountId || this.accountId;
             
-            if (existing) {
-                return existing;
+            if (!targetAccountId) {
+                const accounts = await this.getAccounts();
+                if (accounts.length === 0) {
+                    throw new Error('Kein Account gefunden. Stelle sicher, dass dein API-Token Zugriff auf mindestens einen Account hat.');
+                }
+                targetAccountId = accounts[0].id;
+                this.accountId = targetAccountId;
             }
 
-            // Create new gateway
-            return await this.createAIGateway(gatewayName);
+            // Temporarily use the target account ID for this operation
+            const originalAccountId = this.accountId;
+            this.accountId = targetAccountId;
+
+            try {
+                // Try to get existing gateways
+                const gateways = await this.getAIGateways();
+                const existing = gateways.find(g => g.name === gatewayName);
+                
+                if (existing) {
+                    return existing;
+                }
+
+                // Create new gateway
+                return await this.createAIGateway(gatewayName);
+            } finally {
+                // Restore original account ID
+                this.accountId = originalAccountId;
+            }
         } catch (error) {
             console.error('AI Gateway setup error:', error);
+            if (error.message.includes('Unauthorized') || error.message.includes('insufficient')) {
+                throw new Error('Dein API-Token hat keine Berechtigung für Workers AI. Erforderliche Berechtigungen: account:read, ai:read, ai:write.');
+            }
+            if (error.message.includes('not found')) {
+                throw new Error('Workers AI ist für diesen Account nicht verfügbar. Bitte überprüfe, ob Workers AI für deinen Account aktiviert ist.');
+            }
             throw error;
-        } finally {
-            // Restore original account ID
-            this.accountId = originalAccountId;
         }
     }
 
@@ -629,42 +681,65 @@ class CloudflareAPI {
      * Get all AI Gateways
      */
     async getAIGateways() {
-        if (!this.accountId) {
-            const accounts = await this.getAccounts();
-            if (accounts.length === 0) {
-                throw new Error('Kein Account gefunden');
+        try {
+            if (!this.accountId) {
+                const accounts = await this.getAccounts();
+                if (accounts.length === 0) {
+                    throw new Error('Kein Account gefunden');
+                }
+                this.accountId = accounts[0].id;
             }
-            this.accountId = accounts[0].id;
-        }
 
-        const response = await this.request(`/accounts/${this.accountId}/ai-gateway/gateways`);
-        return response.result;
+            const response = await this.request(`/accounts/${this.accountId}/ai-gateway/gateways`);
+            return response.result || [];
+        } catch (error) {
+            console.error('Failed to fetch AI Gateways:', error);
+            if (error.message.includes('Unauthorized') || error.message.includes('insufficient')) {
+                throw new Error('Dein API-Token hat keine Berechtigung für Workers AI Gateways. Erforderliche Berechtigungen: ai:read.');
+            }
+            if (error.message.includes('404') || error.message.includes('not found')) {
+                console.warn('AI Gateways endpoint nicht verfügbar, aber das ist OK');
+                return [];
+            }
+            throw error;
+        }
     }
 
     /**
      * Create new AI Gateway
      */
     async createAIGateway(name) {
-        if (!this.accountId) {
-            const accounts = await this.getAccounts();
-            if (accounts.length === 0) {
-                throw new Error('Kein Account gefunden');
+        try {
+            if (!this.accountId) {
+                const accounts = await this.getAccounts();
+                if (accounts.length === 0) {
+                    throw new Error('Kein Account gefunden');
+                }
+                this.accountId = accounts[0].id;
             }
-            this.accountId = accounts[0].id;
-        }
 
-        const response = await this.request(`/accounts/${this.accountId}/ai-gateway/gateways`, {
-            method: 'POST',
-            body: JSON.stringify({
-                name: name,
-                cache_ttl: 3600,
-                collect_logs: true,
-                rate_limiting_interval: 60,
-                rate_limiting_limit: 100,
-                rate_limiting_technique: 'sliding'
-            })
-        });
-        return response.result;
+            const response = await this.request(`/accounts/${this.accountId}/ai-gateway/gateways`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: name,
+                    cache_ttl: 3600,
+                    collect_logs: true,
+                    rate_limiting_interval: 60,
+                    rate_limiting_limit: 100,
+                    rate_limiting_technique: 'sliding'
+                })
+            });
+            return response.result;
+        } catch (error) {
+            console.error('Failed to create AI Gateway:', error);
+            if (error.message.includes('Unauthorized') || error.message.includes('insufficient')) {
+                throw new Error('Dein API-Token hat keine Berechtigung zum Erstellen von Workers AI Gateways. Erforderliche Berechtigungen: ai:write.');
+            }
+            if (error.message.includes('already exists')) {
+                throw new Error('Ein Gateway mit diesem Namen existiert bereits.');
+            }
+            throw error;
+        }
     }
 
     /**

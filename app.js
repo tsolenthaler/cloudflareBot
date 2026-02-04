@@ -552,6 +552,32 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         if (aiModel) aiModel.value = config.model || '@cf/meta/llama-3.1-8b-instruct';
         if (aiGatewayName) aiGatewayName.value = config.gatewayName || '';
 
+        // Clear previous messages
+        const aiError = document.getElementById('aiError');
+        const aiSuccess = document.getElementById('aiSuccess');
+        if (aiError) aiError.style.display = 'none';
+        if (aiSuccess) aiSuccess.style.display = 'none';
+
+        // Check AI permissions
+        this.showLoading();
+        const permissions = await this.api.checkAIPermissions();
+        this.hideLoading();
+
+        if (!permissions.hasPermissions) {
+            if (aiError) {
+                aiError.innerHTML = `
+❌ <strong>Berechtigungsproblem:</strong><br>
+${permissions.message}<br><br>
+<strong>Erforderliche Berechtigungen:</strong><ul style="text-align: left;">
+${permissions.requiredPermissions.map(p => `<li><code>${p}</code></li>`).join('')}
+</ul>
+<strong>Lösung:</strong><br>
+Bitte regeneriere deinen API-Token im Cloudflare Dashboard mit den obigen Berechtigungen.
+                `;
+                aiError.style.display = 'block';
+            }
+        }
+
         // Load accounts
         await this.loadAccountsForAI(config.accountId);
 
@@ -559,12 +585,6 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         if (config.enabled) {
             this.displayAIConfig(config);
         }
-
-        // Clear messages
-        const aiError = document.getElementById('aiError');
-        const aiSuccess = document.getElementById('aiSuccess');
-        if (aiError) aiError.style.display = 'none';
-        if (aiSuccess) aiSuccess.style.display = 'none';
     }
 
     /**
@@ -639,7 +659,7 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         aiSuccess.style.display = 'none';
 
         if (!this.api.hasToken()) {
-            aiError.textContent = '❌ Bitte konfiguriere zuerst deinen API-Token.';
+            aiError.innerHTML = '❌ <strong>Fehler:</strong> Bitte konfiguriere zuerst deinen API-Token.<br><em>Erforderliche Berechtigungen:</em> account:read, ai:read, ai:write';
             aiError.style.display = 'block';
             return;
         }
@@ -671,10 +691,13 @@ ID: ${gateway.id}
             }
         } catch (error) {
             this.hideLoading();
-            aiError.textContent = `❌ Gateway-Setup fehlgeschlagen: ${error.message}`;
-            aiError.style.display = 'block';
-        }
-    }
+            let errorMessage = error.message;
+            
+            // Add helpful hints based on error type
+            if (error.message.includes('no Account')) {
+                errorMessage += '<br><br><strong>Mögliche Lösungen:</strong><ul style="text-align: left; margin: 10px 0;"><li>Überprüfe, dass dein API-Token Zugriff auf mindestens einen Account hat</li><li>Regeneriere deinen API-Token mit den richtigen Berechtigungen</li><li>Stelle sicher, dass der Account nicht gelöscht wurde</li></ul>';
+            } else if (error.message.includes('Berechtigung') || error.message.includes('Unauthorized')) {
+                errorMessage += '<br><br><strong>Mögliche Lösungen:</strong><ul style="text-align: left; margin: 10px 0;"><li>Regeneriere deinen API-Token mit folgende Berechtigungen: account:read, ai:read, ai:write</li><li>Stelle sicher, dass der Token nicht abgelaufen ist</li><li>Überprüfe deine Cloudflare Kontoberechtigungen</li></ul>';\n            }\n            \n            aiError.innerHTML = `❌ <strong>Gateway-Setup fehlgeschlagen:</strong><br>${errorMessage}`;\n            aiError.style.display = 'block';\n        }\n    }
 
     /**
      * Test AI configuration
