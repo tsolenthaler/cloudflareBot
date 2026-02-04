@@ -143,6 +143,14 @@ class CloudflareHelperApp {
             });
         }
 
+        // Disable CORS Proxy button
+        const disableCorsProxyBtn = document.getElementById('disableCorsProxyBtn');
+        if (disableCorsProxyBtn) {
+            disableCorsProxyBtn.addEventListener('click', () => {
+                this.disableCorsProxy();
+            });
+        }
+
         // Test AI button
         const testAIBtn = document.getElementById('testAIBtn');
         if (testAIBtn) {
@@ -587,6 +595,16 @@ ${verification.error}<br><br>
         if (aiError) aiError.style.display = 'none';
         if (aiSuccess) aiSuccess.style.display = 'none';
 
+        // Show CORS Proxy warning if enabled
+        const corsProxyWarning = document.getElementById('corsProxyWarning');
+        if (corsProxyWarning) {
+            if (this.api.useCorsProxy) {
+                corsProxyWarning.style.display = 'block';
+            } else {
+                corsProxyWarning.style.display = 'none';
+            }
+        }
+
         // Load accounts directly - this will also show errors if permissions are missing
         await this.loadAccountsForAI(config.accountId);
 
@@ -669,6 +687,27 @@ ${verification.error}<br><br>
 
         if (!this.api.hasToken()) {
             aiError.innerHTML = '❌ <strong>Fehler:</strong> Bitte konfiguriere zuerst deinen API-Token.<br><em>Erforderliche Berechtigungen:</em> account:read, ai:read, ai:write';
+            aiError.style.display = 'block';
+            return;
+        }
+        
+        // Check if CORS proxy is enabled
+        if (this.api.useCorsProxy) {
+            aiError.innerHTML = `
+❌ <strong>AI Gateway kann nicht über CORS Proxy erstellt werden!</strong><br><br>
+<strong>Lösung 1: Deaktiviere CORS Proxy</strong><br>
+<small>localStorage.setItem('use_cors_proxy', 'false'); und lade die Seite neu</small><br><br>
+<strong>Lösung 2: Erstelle Gateway manuell</strong><br>
+<ol style="text-align: left; margin: 10px 0;">
+<li>Gehe zu <a href="https://dash.cloudflare.com/${this.api.accountId || 'dein-account'}/ai/ai-gateway" target="_blank">Cloudflare AI Gateway Dashboard</a></li>
+<li>Klicke "Create Gateway"</li>
+<li>Name: <strong>cloudflare-helper-gateway</strong></li>
+<li>Kopiere die Gateway-ID nach dem Erstellen</li>
+<li>Trage die ID oben im Feld ein</li>
+</ol>
+<strong>Lösung 3: Nutze Workers AI ohne Gateway</strong><br>
+<small>AI Gateway ist optional - du kannst Workers AI auch direkt nutzen</small>
+            `;
             aiError.style.display = 'block';
             return;
         }
@@ -878,6 +917,26 @@ ${error.message}<br><br>
                 aiError.style.display = 'block';
             }
         }
+    }
+
+    /**
+     * Disable CORS Proxy
+     */
+    disableCorsProxy() {
+        this.api.disableCorsProxy();
+        
+        const corsProxyWarning = document.getElementById('corsProxyWarning');
+        if (corsProxyWarning) {
+            corsProxyWarning.style.display = 'none';
+        }
+        
+        const aiSuccess = document.getElementById('aiSuccess');
+        if (aiSuccess) {
+            aiSuccess.innerHTML = '✅ CORS Proxy wurde deaktiviert! Du kannst jetzt Gateway einrichten.';
+            aiSuccess.style.display = 'block';
+        }
+        
+        this.addMessage('✅ CORS Proxy wurde deaktiviert.', 'bot');
     }
 }
 

@@ -615,6 +615,12 @@ class CloudflareAPI {
      */
     async setupAIGateway(gatewayName = 'cloudflare-helper-gateway') {
         try {
+            // Warning if CORS proxy is enabled
+            if (this.useCorsProxy) {
+                console.warn('CORS Proxy ist aktiviert - AI Gateway Setup funktioniert damit nicht!');
+                throw new Error('AI Gateway kann nicht über CORS Proxy erstellt werden. Bitte deaktiviere den CORS Proxy in den Einstellungen oder erstelle das Gateway manuell im Cloudflare Dashboard.');
+            }
+            
             // Ensure we have an account ID (prefer from AI config, then cached, then fetch)
             let targetAccountId = this.aiConfig.accountId || this.accountId;
             

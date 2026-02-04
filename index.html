@@ -188,7 +188,14 @@
                     • <strong>Account → Account Settings → Read</strong> (Accounts auflisten)<br>
                     • <strong>Account → Workers AI → Edit</strong> (Gateway erstellen)<br>
                     <br>
+                    <strong>⚠️ CORS Proxy muss deaktiviert sein!</strong><br>
                     <em>Tipp: Verwende das "Edit Cloudflare Workers" Token-Template</em>
+                </div>
+
+                <div id="corsProxyWarning" style="display: none; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; margin: 10px 0;">
+                    <strong>⚠️ CORS Proxy ist aktiviert!</strong><br>
+                    AI Gateway Setup funktioniert nur ohne CORS Proxy.<br>
+                    <button id="disableCorsProxyBtn" class="btn btn-secondary" style="margin-top: 5px;">CORS Proxy jetzt deaktivieren</button>
                 </div>
 
                 <div id="aiError" class="error-message" style="display: none;"></div>
