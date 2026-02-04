@@ -5,6 +5,10 @@
 
 class CloudflareHelperApp {
     constructor() {
+        // Initialize API and ChatBot
+        this.api = window.cloudflareAPI || new CloudflareAPI();
+        this.chatBot = window.chatBot || new ChatBot(this.api);
+        
         this.chatMessages = document.getElementById('chatMessages');
         this.userInput = document.getElementById('userInput');
         this.sendBtn = document.getElementById('sendBtn');
@@ -158,17 +162,17 @@ class CloudflareHelperApp {
         // CORS Proxy toggle
         const enableCorsProxy = document.getElementById('enableCorsProxy');
         if (enableCorsProxy) {
-            enableCorsProxy.checked = cloudflareAPI.isCorsProxyEnabled();
+            enableCorsProxy.checked = this.api.isCorsProxyEnabled();
             enableCorsProxy.addEventListener('change', (e) => {
                 if (e.target.checked) {
                     if (confirm('⚠️ WARNUNG: Der CORS-Proxy leitet deine API-Anfragen über einen Drittanbieter-Server.\n\nDein API-Token könnte potenziell vom Proxy-Betreiber eingesehen werden.\n\nNur für Tests verwenden!\n\nMöchtest du fortfahren?')) {
-                        cloudflareAPI.enableCorsProxy();
+                        this.api.enableCorsProxy();
                         this.addMessage('⚠️ CORS-Proxy wurde aktiviert. Verwende dies nur für Tests!', 'bot');
                     } else {
                         e.target.checked = false;
                     }
                 } else {
-                    cloudflareAPI.disableCorsProxy();
+                    this.api.disableCorsProxy();
                     this.addMessage('✅ CORS-Proxy wurde deaktiviert.', 'bot');
                 }
             });
@@ -220,7 +224,7 @@ class CloudflareHelperApp {
 
         try {
             // Process message with chatbot
-            const response = await chatBot.processMessage(message);
+            const response = await this.chatBot.processMessage(message);
 
             // Hide loading
             this.hideLoading();
@@ -317,7 +321,7 @@ class CloudflareHelperApp {
         this.tokenModal.classList.add('active');
         
         // Load existing token if available
-        const existingToken = cloudflareAPI.getStoredToken();
+        const existingToken = this.api.getStoredToken();
         const apiTokenInput = document.getElementById('apiToken');
         if (existingToken && apiTokenInput) {
             apiTokenInput.value = existingToken;
@@ -339,7 +343,7 @@ class CloudflareHelperApp {
         this.tokenModal.classList.remove('active');
         
         // Clear input if not saved
-        if (!cloudflareAPI.hasToken()) {
+        if (!this.api.hasToken()) {
             const apiTokenInput = document.getElementById('apiToken');
             if (apiTokenInput) {
                 apiTokenInput.value = '';
@@ -370,11 +374,11 @@ class CloudflareHelperApp {
         }
 
         // Save token
-        cloudflareAPI.saveToken(token);
+        this.api.saveToken(token);
 
         // Verify token
         this.showLoading();
-        const verification = await cloudflareAPI.verifyToken();
+        const verification = await this.api.verifyToken();
         this.hideLoading();
 
         if (verification.success) {
@@ -393,7 +397,7 @@ class CloudflareHelperApp {
             errorDiv.style.display = 'block';
             
             // Remove invalid token
-            cloudflareAPI.deleteToken();
+            this.api.deleteToken();
             this.updateTokenStatus();
         }
     }
@@ -421,15 +425,15 @@ class CloudflareHelperApp {
         }
 
         // Temporarily set token for testing
-        const originalToken = cloudflareAPI.token;
-        cloudflareAPI.token = token;
+        const originalToken = this.api.token;
+        this.api.token = token;
 
         this.showLoading();
-        const verification = await cloudflareAPI.verifyToken();
+        const verification = await this.api.verifyToken();
         this.hideLoading();
 
         // Restore original token
-        cloudflareAPI.token = originalToken;
+        this.api.token = originalToken;
 
         if (verification.success) {
             const tokenData = verification.data;
@@ -453,7 +457,7 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
             return;
         }
 
-        cloudflareAPI.deleteToken();
+        this.api.deleteToken();
         
         const apiTokenInput = document.getElementById('apiToken');
         if (apiTokenInput) {
@@ -492,7 +496,7 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         const statusSpan = document.getElementById('tokenStatus');
         
         if (statusSpan) {
-            if (cloudflareAPI.hasToken()) {
+            if (this.api.hasToken()) {
                 statusSpan.textContent = '🔑 Token konfiguriert';
             } else {
                 statusSpan.textContent = '🔑 Token konfigurieren';
@@ -529,7 +533,7 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         const aiConfigModal = document.getElementById('aiConfigModal');
         if (!aiConfigModal) return;
 
-        if (!cloudflareAPI.hasToken()) {
+        if (!this.api.hasToken()) {
             this.addMessage('⚠️ Bitte konfiguriere zuerst deinen API-Token, bevor du Workers AI einrichtest.', 'bot');
             this.openTokenModal();
             return;
@@ -538,7 +542,7 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         aiConfigModal.classList.add('active');
         
         // Load existing AI config
-        const config = cloudflareAPI.getAIConfig();
+        const config = this.api.getAIConfig();
         
         const aiEnabled = document.getElementById('aiEnabled');
         const aiModel = document.getElementById('aiModel');
@@ -593,7 +597,7 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         };
 
         try {
-            cloudflareAPI.saveAIConfig(config);
+            this.api.saveAIConfig(config);
             
             aiSuccess.textContent = '✅ AI-Konfiguration erfolgreich gespeichert!';
             aiSuccess.style.display = 'block';
@@ -629,7 +633,7 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         aiError.style.display = 'none';
         aiSuccess.style.display = 'none';
 
-        if (!cloudflareAPI.hasToken()) {
+        if (!this.api.hasToken()) {
             aiError.textContent = '❌ Bitte konfiguriere zuerst deinen API-Token.';
             aiError.style.display = 'block';
             return;
@@ -640,11 +644,11 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         this.showLoading();
         
         try {
-            const gateway = await cloudflareAPI.setupAIGateway(gatewayName);
+            const gateway = await this.api.setupAIGateway(gatewayName);
             this.hideLoading();
             
             // Save gateway info
-            cloudflareAPI.saveAIConfig({
+            this.api.saveAIConfig({
                 gatewayId: gateway.id,
                 gatewayName: gateway.name
             });
@@ -680,7 +684,7 @@ ID: ${gateway.id}
         aiError.style.display = 'none';
         aiSuccess.style.display = 'none';
 
-        if (!cloudflareAPI.hasToken()) {
+        if (!this.api.hasToken()) {
             aiError.textContent = '❌ Bitte konfiguriere zuerst deinen API-Token.';
             aiError.style.display = 'block';
             return;
@@ -689,7 +693,7 @@ ID: ${gateway.id}
         this.showLoading();
         
         try {
-            const result = await cloudflareAPI.testAI();
+            const result = await this.api.testAI();
             this.hideLoading();
             
             if (result.success) {
@@ -738,7 +742,7 @@ ${config.gatewayId ? `Gateway ID: ${config.gatewayId}` : ''}
         const statusSpan = document.getElementById('aiStatus');
         
         if (statusSpan) {
-            const config = cloudflareAPI.getAIConfig();
+            const config = this.api.getAIConfig();
             if (config.enabled) {
                 statusSpan.textContent = '🤖 AI aktiv';
             } else {

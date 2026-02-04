@@ -632,7 +632,7 @@ class CloudflareAPI {
                 collect_logs: true,
                 rate_limiting_interval: 60,
                 rate_limiting_limit: 100,
-                rate_limiting_technique: 'sliding"
+                rate_limiting_technique: 'sliding'
             })
         });
         return response.result;
