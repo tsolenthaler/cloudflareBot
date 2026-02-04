@@ -195,7 +195,7 @@ class ChatBot {
             let message = `<strong>📋 Gefundene Domains/Zones (${zones.length}):</strong><br><br>`;
 
             zones.forEach((zone, index) => {
-                const dashboardURL = this.api.getZoneDashboardURL(zone.id, zone.account?.id);
+                const dashboardURL = this.api.getZoneDashboardURL(zone.name, zone.account?.id);
                 const status = zone.status === 'active' ? '✅' : '⚠️';
                 
                 message += `
@@ -208,8 +208,8 @@ class ChatBot {
     </div>
     <div class="info-card-footer">
         <a href="${dashboardURL}" target="_blank">🔗 In Cloudflare öffnen</a> | 
-        <a href="${this.api.getDNSDashboardURL(zone.id, zone.account?.id)}" target="_blank">DNS</a> | 
-        <a href="${this.api.getRulesDashboardURL(zone.id, zone.account?.id)}" target="_blank">Rules</a>
+        <a href="${this.api.getDNSDashboardURL(zone.name, zone.account?.id)}" target="_blank">DNS</a> | 
+        <a href="${this.api.getRulesDashboardURL(zone.name, zone.account?.id)}" target="_blank">Rules</a>
     </div>
 </div>
                 `;
@@ -296,7 +296,7 @@ class ChatBot {
                 responseMessage += '<br>';
             });
 
-            responseMessage += `<br><a href="${this.api.getDNSDashboardURL(zone.id, zone.account?.id)}" target="_blank">🔗 DNS-Einträge in Cloudflare bearbeiten</a>`;
+            responseMessage += `<br><a href="${this.api.getDNSDashboardURL(zone.name, zone.account?.id)}" target="_blank">🔗 DNS-Einträge in Cloudflare bearbeiten</a>`;
 
             // Store zone in context
             this.context.lastZone = zone;
@@ -440,7 +440,7 @@ class ChatBot {
         ${formattedRecord.priority ? `<strong>Priorität:</strong> ${formattedRecord.priority}<br>` : ''}
     </div>
     <div class="info-card-footer">
-        <a href="${this.api.getDNSDashboardURL(zone.id, zone.account?.id)}" target="_blank">🔗 In Cloudflare öffnen</a>
+        <a href="${this.api.getDNSDashboardURL(zone.name, zone.account?.id)}" target="_blank">🔗 In Cloudflare öffnen</a>
     </div>
 </div>
                 `
@@ -535,7 +535,7 @@ class ChatBot {
                 });
             }
 
-            responseMessage += `<br><a href="${this.api.getRulesDashboardURL(zone.id, zone.account?.id)}" target="_blank">🔗 Regeln in Cloudflare bearbeiten</a>`;
+            responseMessage += `<br><a href="${this.api.getRulesDashboardURL(zone.name, zone.account?.id)}" target="_blank">🔗 Regeln in Cloudflare bearbeiten</a>`;
 
             this.context.lastZone = zone;
 
@@ -595,9 +595,9 @@ class ChatBot {
         ${zone.original_name_servers ? `<strong>Original Nameserver:</strong><br>${zone.original_name_servers.map(ns => `&nbsp;&nbsp;• ${ns}`).join('<br>')}<br>` : ''}
     </div>
     <div class="info-card-footer">
-        <a href="${this.api.getZoneDashboardURL(zone.id, zone.account?.id)}" target="_blank">🔗 In Cloudflare öffnen</a> | 
-        <a href="${this.api.getDNSDashboardURL(zone.id, zone.account?.id)}" target="_blank">DNS</a> | 
-        <a href="${this.api.getRulesDashboardURL(zone.id, zone.account?.id)}" target="_blank">Rules</a>
+        <a href="${this.api.getZoneDashboardURL(zone.name, zone.account?.id)}" target="_blank">🔗 In Cloudflare öffnen</a> | 
+        <a href="${this.api.getDNSDashboardURL(zone.name, zone.account?.id)}" target="_blank">DNS</a> | 
+        <a href="${this.api.getRulesDashboardURL(zone.name, zone.account?.id)}" target="_blank">Rules</a>
     </div>
 </div>
             `;

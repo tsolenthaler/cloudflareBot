@@ -328,31 +328,31 @@ class CloudflareAPI {
     /**
      * Generate Cloudflare Dashboard URL for a zone
      */
-    getZoneDashboardURL(zoneId, accountId = null) {
+    getZoneDashboardURL(zoneIdOrName, accountId = null) {
         if (accountId) {
-            return `https://dash.cloudflare.com/${accountId}/${zoneId}`;
+            return `https://dash.cloudflare.com/${accountId}/${zoneIdOrName}`;
         }
-        return `https://dash.cloudflare.com/?to=/:account/${zoneId}`;
+        return `https://dash.cloudflare.com/?to=/:account/${zoneIdOrName}`;
     }
 
     /**
      * Generate Cloudflare Dashboard URL for DNS records
      */
-    getDNSDashboardURL(zoneId, accountId = null) {
+    getDNSDashboardURL(zoneIdOrName, accountId = null) {
         if (accountId) {
-            return `https://dash.cloudflare.com/${accountId}/${zoneId}/dns`;
+            return `https://dash.cloudflare.com/${accountId}/${zoneIdOrName}/dns`;
         }
-        return `https://dash.cloudflare.com/?to=/:account/${zoneId}/dns`;
+        return `https://dash.cloudflare.com/?to=/:account/${zoneIdOrName}/dns`;
     }
 
     /**
      * Generate Cloudflare Dashboard URL for rules
      */
-    getRulesDashboardURL(zoneId, accountId = null) {
+    getRulesDashboardURL(zoneIdOrName, accountId = null) {
         if (accountId) {
-            return `https://dash.cloudflare.com/${accountId}/${zoneId}/rules`;
+            return `https://dash.cloudflare.com/${accountId}/${zoneIdOrName}/rules`;
         }
-        return `https://dash.cloudflare.com/?to=/:account/${zoneId}/rules`;
+        return `https://dash.cloudflare.com/?to=/:account/${zoneIdOrName}/rules`;
     }
 
     /**
