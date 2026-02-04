@@ -487,15 +487,44 @@ class ChatBot {
             }
 
             // Try to get rulesets
-            const rulesets = await this.api.getRulesets(zone.id);
-            const pageRules = await this.api.getPageRules(zone.id);
+            let rulesets = [];
+            let pageRules = [];
+            let rulesetsError = null;
+            let pageRulesError = null;
+
+            // Try to get rulesets
+            try {
+                rulesets = await this.api.getRulesets(zone.id);
+            } catch (e) {
+                rulesetsError = e.message;
+            }
+
+            // Try to get page rules
+            try {
+                pageRules = await this.api.getPageRules(zone.id);
+            } catch (e) {
+                pageRulesError = e.message;
+            }
 
             let responseMessage = `<strong>🔀 Regeln für ${zone.name}:</strong><br><br>`;
 
             if (rulesets.length === 0 && pageRules.length === 0) {
+                let message = `ℹ️ Keine Regeln für ${zone.name} gefunden.`;
+                
+                if (rulesetsError || pageRulesError) {
+                    message += `<br><br><strong>⚠️ Hinweis:</strong><br>`;
+                    if (rulesetsError) {
+                        message += `Rulesets konnten nicht abgerufen werden<br>`;
+                    }
+                    if (pageRulesError) {
+                        message += `Page Rules konnten nicht abgerufen werden<br>`;
+                    }
+                    message += `<br>Dies könnte ein CORS-Proxy-Problem sein. Versuche, den CORS-Proxy zu deaktivieren.`;
+                }
+                
                 return {
                     type: 'info',
-                    message: `ℹ️ Keine Regeln für ${zone.name} gefunden.`
+                    message: message
                 };
             }
 
@@ -515,6 +544,8 @@ class ChatBot {
 </div>
                     `;
                 });
+            } else if (rulesetsError) {
+                responseMessage += `<strong>Rulesets:</strong> Fehler beim Abrufen<br><small>Grund: ${rulesetsError}</small><br><br>`;
             }
 
             // Display page rules
@@ -533,6 +564,8 @@ class ChatBot {
 </div>
                     `;
                 });
+            } else if (pageRulesError) {
+                responseMessage += `<strong>Page Rules:</strong> Fehler beim Abrufen<br><small>Grund: ${pageRulesError}</small><br><br>`;
             }
 
             responseMessage += `<br><a href="${this.api.getRulesDashboardURL(zone.name, zone.account?.id)}" target="_blank">🔗 Regeln in Cloudflare bearbeiten</a>`;
@@ -546,7 +579,7 @@ class ChatBot {
         } catch (error) {
             return {
                 type: 'error',
-                message: `❌ Fehler beim Abrufen der Regeln: ${error.message}`
+                message: `❌ Fehler beim Abrufen der Regeln: ${error.message}<br><br>ℹ️ Hinweis: Dies könnte ein CORS-Proxy-Problem sein. Versuche, den CORS-Proxy zu deaktivieren.`
             };
         }
     }
