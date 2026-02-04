@@ -439,14 +439,22 @@ class CloudflareHelperApp {
             const tokenData = verification.data;
             
             // Also test account access
+            this.api.token = token; // Set temporarily to test with this token
             this.showLoading();
             let accountInfo = '';
+            let accountsData = [];
             try {
-                const accounts = await this.api.getAccounts();
-                accountInfo = `<br><strong>Accounts:</strong> ${accounts.length} Account(s) verfügbar`;
+                accountsData = await this.api.getAccounts();
+                if (accountsData.length > 0) {
+                    accountInfo = `<br><strong>Accounts:</strong> ✅ ${accountsData.length} Account(s) gefunden<br>`;
+                    accountInfo += accountsData.map(acc => `  • ${acc.name} (${acc.id})`).join('<br>');
+                } else {
+                    accountInfo = `<br><strong>Accounts:</strong> ⚠️ Keine Accounts gefunden (leeres Array)`;
+                }
             } catch (e) {
-                accountInfo = `<br><strong>Accounts:</strong> ❌ ${e.message}`;
+                accountInfo = `<br><strong>Accounts:</strong> ❌ Fehler: ${e.message}`;
             }
+            this.api.token = originalToken; // Restore original
             this.hideLoading();
             
             successDiv.innerHTML = `
@@ -579,29 +587,7 @@ ${verification.error}<br><br>
         if (aiError) aiError.style.display = 'none';
         if (aiSuccess) aiSuccess.style.display = 'none';
 
-        // Check AI permissions
-        this.showLoading();
-        const permissions = await this.api.checkAIPermissions();
-        this.hideLoading();
-
-        if (!permissions.hasPermissions) {
-            if (aiError) {
-                aiError.innerHTML = `
-❌ <strong>Berechtigungsproblem:</strong><br>
-${permissions.message}<br><br>
-<strong>Erforderliche Berechtigungen:</strong><ul style="text-align: left;">
-${permissions.requiredPermissions.map(p => `<li><code>${p}</code></li>`).join('')}
-</ul>
-<strong>Lösung:</strong><br>
-Bitte regeneriere deinen API-Token im Cloudflare Dashboard mit den obigen Berechtigungen.
-                `;
-                aiError.style.display = 'block';
-            }
-            // Don't load accounts if there's a permission error
-            return;
-        }
-
-        // Load accounts
+        // Load accounts directly - this will also show errors if permissions are missing
         await this.loadAccountsForAI(config.accountId);
 
         // Show current config if exists

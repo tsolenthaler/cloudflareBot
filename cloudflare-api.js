@@ -194,41 +194,22 @@ class CloudflareAPI {
      */
     async checkAIPermissions() {
         try {
-            const response = await this.request('/user/tokens/verify');
-            const token = response.result;
-            
-            // Check if token has the required permissions
-            const requiredPermissions = ['account:read', 'ai:read', 'ai:write'];
-            
-            if (!token.policies || token.policies.length === 0) {
-                return {
-                    hasPermissions: false,
-                    message: 'API-Token hat keine Berechtigungen definiert',
-                    requiredPermissions: requiredPermissions
-                };
-            }
-            
-            // Check for account access
-            const accountPolicy = token.policies.find(p => p.permission_groups?.some(g => g.name === 'Account'));
-            if (!accountPolicy) {
-                return {
-                    hasPermissions: false,
-                    message: 'API-Token hat keine Account-Berechtigungen',
-                    requiredPermissions: requiredPermissions
-                };
-            }
+            // Simply try to access accounts as the real test
+            const accounts = await this.getAccounts();
             
             return {
                 hasPermissions: true,
-                message: 'API-Token hat die erforderlichen Berechtigungen',
-                requiredPermissions: requiredPermissions
+                message: `API-Token hat Zugriff auf ${accounts.length} Account(s)`,
+                requiredPermissions: ['Account:Read für Workers AI'],
+                accountCount: accounts.length
             };
         } catch (error) {
             console.error('Error checking AI permissions:', error);
             return {
-                hasPermissions: null,
-                message: `Berechtigungen konnten nicht überprüft werden: ${error.message}`,
-                requiredPermissions: ['account:read', 'ai:read', 'ai:write']
+                hasPermissions: false,
+                message: error.message || 'Kein Zugriff auf Accounts möglich',
+                requiredPermissions: ['Account:Read für Workers AI'],
+                accountCount: 0
             };
         }
     }
