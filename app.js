@@ -11,6 +11,12 @@ class CloudflareHelperApp {
         this.tokenModal = document.getElementById('tokenModal');
         this.loadingOverlay = document.getElementById('loadingOverlay');
 
+        // Check if all required elements exist
+        if (!this.chatMessages || !this.userInput || !this.sendBtn || !this.tokenModal || !this.loadingOverlay) {
+            console.error('Required DOM elements not found');
+            return;
+        }
+
         this.initializeEventListeners();
         this.updateTokenStatus();
     }
@@ -20,69 +26,98 @@ class CloudflareHelperApp {
      */
     initializeEventListeners() {
         // Send message on button click
-        this.sendBtn.addEventListener('click', () => this.handleSendMessage());
+        if (this.sendBtn) {
+            this.sendBtn.addEventListener('click', () => this.handleSendMessage());
+        }
 
         // Send message on Enter key
-        this.userInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.handleSendMessage();
-            }
-        });
+        if (this.userInput) {
+            this.userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.handleSendMessage();
+                }
+            });
+        }
 
         // Clear chat button
-        document.getElementById('clearChatBtn').addEventListener('click', () => {
-            this.clearChat();
-        });
+        const clearChatBtn = document.getElementById('clearChatBtn');
+        if (clearChatBtn) {
+            clearChatBtn.addEventListener('click', () => {
+                this.clearChat();
+            });
+        }
 
         // Token configuration button
-        document.getElementById('tokenBtn').addEventListener('click', () => {
-            this.openTokenModal();
-        });
+        const tokenBtn = document.getElementById('tokenBtn');
+        if (tokenBtn) {
+            tokenBtn.addEventListener('click', () => {
+                this.openTokenModal();
+            });
+        }
 
         // Modal close button
-        document.querySelector('.modal-close').addEventListener('click', () => {
-            this.closeTokenModal();
-        });
+        const modalClose = document.querySelector('.modal-close');
+        if (modalClose) {
+            modalClose.addEventListener('click', () => {
+                this.closeTokenModal();
+            });
+        }
 
         // Close modal on outside click
-        this.tokenModal.addEventListener('click', (e) => {
-            if (e.target === this.tokenModal) {
-                this.closeTokenModal();
-            }
-        });
+        if (this.tokenModal) {
+            this.tokenModal.addEventListener('click', (e) => {
+                if (e.target === this.tokenModal) {
+                    this.closeTokenModal();
+                }
+            });
+        }
 
         // Save token button
-        document.getElementById('saveTokenBtn').addEventListener('click', () => {
-            this.saveToken();
-        });
+        const saveTokenBtn = document.getElementById('saveTokenBtn');
+        if (saveTokenBtn) {
+            saveTokenBtn.addEventListener('click', () => {
+                this.saveToken();
+            });
+        }
 
         // Test token button
-        document.getElementById('testTokenBtn').addEventListener('click', () => {
-            this.testToken();
-        });
+        const testTokenBtn = document.getElementById('testTokenBtn');
+        if (testTokenBtn) {
+            testTokenBtn.addEventListener('click', () => {
+                this.testToken();
+            });
+        }
 
         // Delete token button
-        document.getElementById('deleteTokenBtn').addEventListener('click', () => {
-            this.deleteToken();
-        });
+        const deleteTokenBtn = document.getElementById('deleteTokenBtn');
+        if (deleteTokenBtn) {
+            deleteTokenBtn.addEventListener('click', () => {
+                this.deleteToken();
+            });
+        }
 
         // Toggle token visibility
-        document.getElementById('toggleTokenVisibility').addEventListener('click', () => {
-            this.toggleTokenVisibility();
-        });
+        const toggleTokenVisibility = document.getElementById('toggleTokenVisibility');
+        if (toggleTokenVisibility) {
+            toggleTokenVisibility.addEventListener('click', () => {
+                this.toggleTokenVisibility();
+            });
+        }
 
         // Quick action buttons
         document.querySelectorAll('.quick-action-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const command = e.target.getAttribute('data-command');
-                this.userInput.value = command;
-                this.handleSendMessage();
+                if (this.userInput) {
+                    this.userInput.value = command;
+                    this.handleSendMessage();
+                }
             });
         });
 
         // Close modal on Escape key
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.tokenModal.classList.contains('active')) {
+            if (e.key === 'Escape' && this.tokenModal && this.tokenModal.classList.contains('active')) {
                 this.closeTokenModal();
             }
         });
@@ -132,6 +167,8 @@ class CloudflareHelperApp {
      * Add a message to the chat
      */
     addMessage(text, sender = 'bot') {
+        if (!this.chatMessages) return;
+
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
 
@@ -174,13 +211,17 @@ class CloudflareHelperApp {
      * Scroll chat to bottom
      */
     scrollToBottom() {
-        this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+        if (this.chatMessages) {
+            this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+        }
     }
 
     /**
      * Clear chat messages
      */
     clearChat() {
+        if (!this.chatMessages) return;
+
         // Keep only the welcome message
         const welcomeMessage = this.chatMessages.querySelector('.message.bot-message');
         this.chatMessages.innerHTML = '';
@@ -195,28 +236,38 @@ class CloudflareHelperApp {
      * Open token configuration modal
      */
     openTokenModal() {
+        if (!this.tokenModal) return;
+
         this.tokenModal.classList.add('active');
         
         // Load existing token if available
         const existingToken = cloudflareAPI.getStoredToken();
-        if (existingToken) {
-            document.getElementById('apiToken').value = existingToken;
+        const apiTokenInput = document.getElementById('apiToken');
+        if (existingToken && apiTokenInput) {
+            apiTokenInput.value = existingToken;
         }
 
         // Clear messages
-        document.getElementById('tokenError').style.display = 'none';
-        document.getElementById('tokenSuccess').style.display = 'none';
+        const tokenError = document.getElementById('tokenError');
+        const tokenSuccess = document.getElementById('tokenSuccess');
+        if (tokenError) tokenError.style.display = 'none';
+        if (tokenSuccess) tokenSuccess.style.display = 'none';
     }
 
     /**
      * Close token configuration modal
      */
     closeTokenModal() {
+        if (!this.tokenModal) return;
+
         this.tokenModal.classList.remove('active');
         
         // Clear input if not saved
         if (!cloudflareAPI.hasToken()) {
-            document.getElementById('apiToken').value = '';
+            const apiTokenInput = document.getElementById('apiToken');
+            if (apiTokenInput) {
+                apiTokenInput.value = '';
+            }
         }
     }
 
@@ -225,9 +276,12 @@ class CloudflareHelperApp {
      */
     async saveToken() {
         const tokenInput = document.getElementById('apiToken');
-        const token = tokenInput.value.trim();
         const errorDiv = document.getElementById('tokenError');
         const successDiv = document.getElementById('tokenSuccess');
+
+        if (!tokenInput || !errorDiv || !successDiv) return;
+
+        const token = tokenInput.value.trim();
 
         // Hide previous messages
         errorDiv.style.display = 'none';
@@ -273,9 +327,12 @@ class CloudflareHelperApp {
      */
     async testToken() {
         const tokenInput = document.getElementById('apiToken');
-        const token = tokenInput.value.trim();
         const errorDiv = document.getElementById('tokenError');
         const successDiv = document.getElementById('tokenSuccess');
+
+        if (!tokenInput || !errorDiv || !successDiv) return;
+
+        const token = tokenInput.value.trim();
 
         // Hide previous messages
         errorDiv.style.display = 'none';
@@ -321,11 +378,17 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
         }
 
         cloudflareAPI.deleteToken();
-        document.getElementById('apiToken').value = '';
+        
+        const apiTokenInput = document.getElementById('apiToken');
+        if (apiTokenInput) {
+            apiTokenInput.value = '';
+        }
         
         const successDiv = document.getElementById('tokenSuccess');
-        successDiv.textContent = '✅ Token wurde gelöscht.';
-        successDiv.style.display = 'block';
+        if (successDiv) {
+            successDiv.textContent = '✅ Token wurde gelöscht.';
+            successDiv.style.display = 'block';
+        }
 
         this.updateTokenStatus();
 
@@ -341,7 +404,9 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
      */
     toggleTokenVisibility() {
         const tokenInput = document.getElementById('apiToken');
-        tokenInput.type = tokenInput.type === 'password' ? 'text' : 'password';
+        if (tokenInput) {
+            tokenInput.type = tokenInput.type === 'password' ? 'text' : 'password';
+        }
     }
 
     /**
@@ -350,10 +415,12 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
     updateTokenStatus() {
         const statusSpan = document.getElementById('tokenStatus');
         
-        if (cloudflareAPI.hasToken()) {
-            statusSpan.textContent = '🔑 Token konfiguriert';
-        } else {
-            statusSpan.textContent = '🔑 Token konfigurieren';
+        if (statusSpan) {
+            if (cloudflareAPI.hasToken()) {
+                statusSpan.textContent = '🔑 Token konfiguriert';
+            } else {
+                statusSpan.textContent = '🔑 Token konfigurieren';
+            }
         }
     }
 
@@ -361,14 +428,18 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
      * Show loading overlay
      */
     showLoading() {
-        this.loadingOverlay.style.display = 'flex';
+        if (this.loadingOverlay) {
+            this.loadingOverlay.style.display = 'flex';
+        }
     }
 
     /**
      * Hide loading overlay
      */
     hideLoading() {
-        this.loadingOverlay.style.display = 'none';
+        if (this.loadingOverlay) {
+            this.loadingOverlay.style.display = 'none';
+        }
     }
 }
 
