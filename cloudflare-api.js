@@ -713,8 +713,8 @@ class CloudflareAPI {
             return response.result;
         } catch (error) {
             console.error('Failed to create AI Gateway:', error);
-            if (error.message.includes('Unauthorized') || error.message.includes('insufficient')) {
-                throw new Error('Dein API-Token hat keine Berechtigung zum Erstellen von Workers AI Gateways. Erforderliche Berechtigungen: ai:write.');
+            if (error.message.includes('Unauthorized') || error.message.includes('insufficient') || error.message.includes('Authentication error') || error.message.includes('403')) {
+                throw new Error('Dein API-Token hat keine SCHREIB-Berechtigung für Workers AI Gateways. Du hast vermutlich nur Read-Zugriff. Erforderlich: Account - Workers AI:Edit Berechtigung.');
             }
             if (error.message.includes('already exists')) {
                 throw new Error('Ein Gateway mit diesem Namen existiert bereits.');

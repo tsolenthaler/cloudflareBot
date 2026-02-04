@@ -705,8 +705,10 @@ ID: ${gateway.id}
             // Add helpful hints based on error type
             if (error.message.includes('no Account')) {
                 errorMessage += '<br><br><strong>Mögliche Lösungen:</strong><ul style="text-align: left; margin: 10px 0;"><li>Überprüfe, dass dein API-Token Zugriff auf mindestens einen Account hat</li><li>Regeneriere deinen API-Token mit den richtigen Berechtigungen</li><li>Stelle sicher, dass der Account nicht gelöscht wurde</li></ul>';
+            } else if (error.message.includes('SCHREIB-Berechtigung') || error.message.includes('Workers AI:Edit')) {
+                errorMessage += '<br><br><strong>⚠️ Du hast nur Lese-Zugriff!</strong><br><strong>Lösung:</strong><ul style="text-align: left; margin: 10px 0;"><li>Gehe zu <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank">Cloudflare API Tokens</a></li><li>Erstelle einen neuen Token mit "Edit Cloudflare Workers" Template</li><li><strong>ODER:</strong> Custom Token mit Account → Workers AI → <strong>Edit</strong> Berechtigung</li><li>Ersetze deinen aktuellen "Read all resources" Token</li></ul>';
             } else if (error.message.includes('Berechtigung') || error.message.includes('Unauthorized')) {
-                errorMessage += '<br><br><strong>Mögliche Lösungen:</strong><ul style="text-align: left; margin: 10px 0;"><li>Regeneriere deinen API-Token mit folgende Berechtigungen: account:read, ai:read, ai:write</li><li>Stelle sicher, dass der Token nicht abgelaufen ist</li><li>Überprüfe deine Cloudflare Kontoberechtigungen</li></ul>';
+                errorMessage += '<br><br><strong>Mögliche Lösungen:</strong><ul style="text-align: left; margin: 10px 0;"><li>Regeneriere deinen API-Token mit folgenden Berechtigungen: Account:Read, Workers AI:Edit</li><li>Stelle sicher, dass der Token nicht abgelaufen ist</li><li>Überprüfe deine Cloudflare Kontoberechtigungen</li></ul>';
             }
             
             aiError.innerHTML = `❌ <strong>Gateway-Setup fehlgeschlagen:</strong><br>${errorMessage}`;
