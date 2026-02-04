@@ -239,7 +239,7 @@ class CloudflareAPI {
     async getAccounts() {
         try {
             const response = await this.request('/accounts');
-            const accounts = response.result;
+            const accounts = response.result || [];
             
             // Auto-save first account ID if not set
             if (accounts.length > 0 && !this.accountId) {

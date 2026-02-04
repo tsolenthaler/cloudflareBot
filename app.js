@@ -437,14 +437,35 @@ class CloudflareHelperApp {
 
         if (verification.success) {
             const tokenData = verification.data;
+            
+            // Also test account access
+            this.showLoading();
+            let accountInfo = '';
+            try {
+                const accounts = await this.api.getAccounts();
+                accountInfo = `<br><strong>Accounts:</strong> ${accounts.length} Account(s) verfügbar`;
+            } catch (e) {
+                accountInfo = `<br><strong>Accounts:</strong> ❌ ${e.message}`;
+            }
+            this.hideLoading();
+            
             successDiv.innerHTML = `
 ✅ <strong>Token ist gültig!</strong><br>
 Status: ${tokenData.status}<br>
 ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDateString('de-DE')}` : 'Kein Ablaufdatum'}
+${accountInfo}
             `;
             successDiv.style.display = 'block';
         } else {
-            errorDiv.textContent = `❌ Token-Verifizierung fehlgeschlagen: ${verification.error}`;
+            errorDiv.innerHTML = `
+❌ <strong>Token-Verifizierung fehlgeschlagen:</strong><br>
+${verification.error}<br><br>
+<strong>Mögliche Ursachen:</strong><ul style="text-align: left;">
+<li>Token ist ungültig oder abgelaufen</li>
+<li>Token wurde widerrufen</li>
+<li>Netzwerkfehler</li>
+</ul>
+            `;
             errorDiv.style.display = 'block';
         }
     }
@@ -576,6 +597,8 @@ Bitte regeneriere deinen API-Token im Cloudflare Dashboard mit den obigen Berech
                 `;
                 aiError.style.display = 'block';
             }
+            // Don't load accounts if there's a permission error
+            return;
         }
 
         // Load accounts
@@ -697,7 +720,13 @@ ID: ${gateway.id}
             if (error.message.includes('no Account')) {
                 errorMessage += '<br><br><strong>Mögliche Lösungen:</strong><ul style="text-align: left; margin: 10px 0;"><li>Überprüfe, dass dein API-Token Zugriff auf mindestens einen Account hat</li><li>Regeneriere deinen API-Token mit den richtigen Berechtigungen</li><li>Stelle sicher, dass der Account nicht gelöscht wurde</li></ul>';
             } else if (error.message.includes('Berechtigung') || error.message.includes('Unauthorized')) {
-                errorMessage += '<br><br><strong>Mögliche Lösungen:</strong><ul style="text-align: left; margin: 10px 0;"><li>Regeneriere deinen API-Token mit folgende Berechtigungen: account:read, ai:read, ai:write</li><li>Stelle sicher, dass der Token nicht abgelaufen ist</li><li>Überprüfe deine Cloudflare Kontoberechtigungen</li></ul>';\n            }\n            \n            aiError.innerHTML = `❌ <strong>Gateway-Setup fehlgeschlagen:</strong><br>${errorMessage}`;\n            aiError.style.display = 'block';\n        }\n    }
+                errorMessage += '<br><br><strong>Mögliche Lösungen:</strong><ul style="text-align: left; margin: 10px 0;"><li>Regeneriere deinen API-Token mit folgende Berechtigungen: account:read, ai:read, ai:write</li><li>Stelle sicher, dass der Token nicht abgelaufen ist</li><li>Überprüfe deine Cloudflare Kontoberechtigungen</li></ul>';
+            }
+            
+            aiError.innerHTML = `❌ <strong>Gateway-Setup fehlgeschlagen:</strong><br>${errorMessage}`;
+            aiError.style.display = 'block';
+        }
+    }
 
     /**
      * Test AI configuration
@@ -786,6 +815,7 @@ ${config.gatewayId ? `Gateway ID: ${config.gatewayId}` : ''}
     async loadAccountsForAI(selectedAccountId = null) {
         const aiAccount = document.getElementById('aiAccount');
         const aiAccountInfo = document.getElementById('aiAccountInfo');
+        const aiError = document.getElementById('aiError');
         
         if (!aiAccount) return;
 
@@ -799,6 +829,20 @@ ${config.gatewayId ? `Gateway ID: ${config.gatewayId}` : ''}
                 if (aiAccountInfo) {
                     aiAccountInfo.textContent = '⚠️ Keine Accounts verfügbar';
                     aiAccountInfo.style.color = 'red';
+                }
+                if (aiError) {
+                    aiError.innerHTML = `
+❌ <strong>Keine Accounts gefunden</strong><br>
+Dein API-Token hat keinen Zugriff auf Accounts oder der Account wurde gelöscht.<br><br>
+<strong>Mögliche Ursachen:</strong><ul style="text-align: left;">
+<li>API-Token hat keine <code>account:read</code> Berechtigung</li>
+<li>Der zugeordnete Account wurde gelöscht</li>
+<li>API-Token ist abgelaufen</li>
+<li>Keine Accounts im Cloudflare Konto verfügbar</li>
+</ul>
+<strong>Lösung:</strong> Regeneriere deinen API-Token mit den richtigen Berechtigungen.
+                    `;
+                    aiError.style.display = 'block';
                 }
                 return;
             }
@@ -816,6 +860,11 @@ ${config.gatewayId ? `Gateway ID: ${config.gatewayId}` : ''}
                 aiAccountInfo.style.color = '#666';
             }
 
+            // Clear any previous error messages
+            if (aiError) {
+                aiError.style.display = 'none';
+            }
+
             // If no account was selected, select the first one
             if (!selectedAccountId && accounts.length > 0) {
                 aiAccount.value = accounts[0].id;
@@ -826,6 +875,19 @@ ${config.gatewayId ? `Gateway ID: ${config.gatewayId}` : ''}
             if (aiAccountInfo) {
                 aiAccountInfo.textContent = `❌ ${error.message}`;
                 aiAccountInfo.style.color = 'red';
+            }
+            if (aiError) {
+                aiError.innerHTML = `
+❌ <strong>Fehler beim Laden der Accounts:</strong><br>
+${error.message}<br><br>
+<strong>Debugging-Tipps:</strong><ul style="text-align: left;">
+<li>Überprüfe, dass dein API-Token gültig ist</li>
+<li>Stelle sicher, dass der Token nicht abgelaufen ist</li>
+<li>Überprüfe die Browser-Konsole (F12) auf weitere Details</li>
+<li>Versuche einen neuen Token zu generieren</li>
+</ul>
+                `;
+                aiError.style.display = 'block';
             }
         }
     }
