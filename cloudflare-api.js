@@ -13,6 +13,9 @@ class CloudflareAPI {
         // Der Proxy kann potenziell deinen API-Token sehen
         this.useCorsProxy = localStorage.getItem('use_cors_proxy') === 'true';
         this.corsProxyURL = 'https://corsproxy.io/?';
+        
+        // Workers AI Configuration
+        this.aiConfig = this.getStoredAIConfig();
     }
 
     /**
@@ -37,6 +40,48 @@ class CloudflareAPI {
         localStorage.removeItem('cloudflare_api_token');
         this.token = null;
         this.accountId = null;
+    }
+
+    /**
+     * Get stored AI configuration from localStorage
+     */
+    getStoredAIConfig() {
+        const stored = localStorage.getItem('cloudflare_ai_config');
+        if (stored) {
+            try {
+                return JSON.parse(stored);
+            } catch (e) {
+                console.error('Failed to parse AI config:', e);
+            }
+        }
+        return {
+            enabled: false,
+            model: '@cf/meta/llama-3.1-8b-instruct',
+            gatewayId: null,
+            gatewayName: null
+        };
+    }
+
+    /**
+     * Save AI configuration to localStorage
+     */
+    saveAIConfig(config) {
+        this.aiConfig = { ...this.aiConfig, ...config };
+        localStorage.setItem('cloudflare_ai_config', JSON.stringify(this.aiConfig));
+    }
+
+    /**
+     * Get current AI configuration
+     */
+    getAIConfig() {
+        return { ...this.aiConfig };
+    }
+
+    /**
+     * Check if AI is configured
+     */
+    hasAIConfig() {
+        return this.aiConfig.enabled && this.aiConfig.model && this.accountId;
     }
 
     /**
@@ -462,6 +507,193 @@ class CloudflareAPI {
         const queryParams = new URLSearchParams(params);
         const response = await this.request(`${endpoint}?${queryParams}`);
         return response.result;
+    }
+
+    // ========================================
+    // Workers AI Methods
+    // ========================================
+
+    /**
+     * Get available Workers AI models
+     */
+    async getAIModels() {
+        if (!this.accountId) {
+            const accounts = await this.getAccounts();
+            if (accounts.length === 0) {
+                throw new Error('Kein Account gefunden');
+            }
+            this.accountId = accounts[0].id;
+        }
+
+        // List of popular Cloudflare Workers AI models
+        // Note: The API doesn't provide a direct list endpoint, so we return known models
+        return [
+            {
+                id: '@cf/meta/llama-3.1-8b-instruct',
+                name: 'Llama 3.1 8B Instruct',
+                type: 'text-generation',
+                description: 'Fast and efficient text generation'
+            },
+            {
+                id: '@cf/meta/llama-3.1-70b-instruct',
+                name: 'Llama 3.1 70B Instruct',
+                type: 'text-generation',
+                description: 'More powerful text generation'
+            },
+            {
+                id: '@cf/meta/llama-3-8b-instruct',
+                name: 'Llama 3 8B Instruct',
+                type: 'text-generation',
+                description: 'Previous generation Llama model'
+            },
+            {
+                id: '@cf/mistral/mistral-7b-instruct-v0.1',
+                name: 'Mistral 7B Instruct',
+                type: 'text-generation',
+                description: 'Mistral AI instruction model'
+            },
+            {
+                id: '@cf/qwen/qwen1.5-14b-chat-awq',
+                name: 'Qwen 1.5 14B Chat',
+                type: 'text-generation',
+                description: 'Qwen chat model'
+            },
+            {
+                id: '@cf/google/gemma-7b-it',
+                name: 'Gemma 7B IT',
+                type: 'text-generation',
+                description: 'Google Gemma instruction tuned'
+            }
+        ];
+    }
+
+    /**
+     * Create or get AI Gateway
+     */
+    async setupAIGateway(gatewayName = 'cloudflare-helper-gateway') {
+        if (!this.accountId) {
+            const accounts = await this.getAccounts();
+            if (accounts.length === 0) {
+                throw new Error('Kein Account gefunden');
+            }
+            this.accountId = accounts[0].id;
+        }
+
+        try {
+            // Try to get existing gateways
+            const gateways = await this.getAIGateways();
+            const existing = gateways.find(g => g.name === gatewayName);
+            
+            if (existing) {
+                return existing;
+            }
+
+            // Create new gateway
+            return await this.createAIGateway(gatewayName);
+        } catch (error) {
+            console.error('AI Gateway setup error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get all AI Gateways
+     */
+    async getAIGateways() {
+        if (!this.accountId) {
+            const accounts = await this.getAccounts();
+            if (accounts.length === 0) {
+                throw new Error('Kein Account gefunden');
+            }
+            this.accountId = accounts[0].id;
+        }
+
+        const response = await this.request(`/accounts/${this.accountId}/ai-gateway/gateways`);
+        return response.result;
+    }
+
+    /**
+     * Create new AI Gateway
+     */
+    async createAIGateway(name) {
+        if (!this.accountId) {
+            const accounts = await this.getAccounts();
+            if (accounts.length === 0) {
+                throw new Error('Kein Account gefunden');
+            }
+            this.accountId = accounts[0].id;
+        }
+
+        const response = await this.request(`/accounts/${this.accountId}/ai-gateway/gateways`, {
+            method: 'POST',
+            body: JSON.stringify({
+                name: name,
+                cache_ttl: 3600,
+                collect_logs: true,
+                rate_limiting_interval: 60,
+                rate_limiting_limit: 100,
+                rate_limiting_technique: 'sliding"
+            })
+        });
+        return response.result;
+    }
+
+    /**
+     * Run AI inference using Workers AI
+     */
+    async runAI(messages, model = null) {
+        if (!this.accountId) {
+            const accounts = await this.getAccounts();
+            if (accounts.length === 0) {
+                throw new Error('Kein Account gefunden');
+            }
+            this.accountId = accounts[0].id;
+        }
+
+        const selectedModel = model || this.aiConfig.model || '@cf/meta/llama-3.1-8b-instruct';
+
+        const response = await this.request(
+            `/accounts/${this.accountId}/ai/run/${selectedModel}`,
+            {
+                method: 'POST',
+                body: JSON.stringify({
+                    messages: messages
+                })
+            }
+        );
+
+        return response.result;
+    }
+
+    /**
+     * Send a chat message to Workers AI
+     */
+    async chatWithAI(userMessage, conversationHistory = []) {
+        const messages = [
+            ...conversationHistory,
+            { role: 'user', content: userMessage }
+        ];
+
+        const result = await this.runAI(messages);
+        return result.response || result.content || result;
+    }
+
+    /**
+     * Test AI configuration
+     */
+    async testAI() {
+        try {
+            const response = await this.chatWithAI('Hello! Say "OK" if you can hear me.');
+            return {
+                success: true,
+                response: response
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
     }
 }
 

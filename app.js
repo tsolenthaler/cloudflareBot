@@ -19,6 +19,7 @@ class CloudflareHelperApp {
 
         this.initializeEventListeners();
         this.updateTokenStatus();
+        this.updateAIStatus();
     }
 
     /**
@@ -96,6 +97,56 @@ class CloudflareHelperApp {
             });
         }
 
+        // AI Configuration button
+        const aiConfigBtn = document.getElementById('aiConfigBtn');
+        if (aiConfigBtn) {
+            aiConfigBtn.addEventListener('click', () => {
+                this.openAIConfigModal();
+            });
+        }
+
+        // AI Modal close button
+        const modalCloseAI = document.querySelector('.modal-close-ai');
+        if (modalCloseAI) {
+            modalCloseAI.addEventListener('click', () => {
+                this.closeAIConfigModal();
+            });
+        }
+
+        // Close AI modal on outside click
+        const aiConfigModal = document.getElementById('aiConfigModal');
+        if (aiConfigModal) {
+            aiConfigModal.addEventListener('click', (e) => {
+                if (e.target === aiConfigModal) {
+                    this.closeAIConfigModal();
+                }
+            });
+        }
+
+        // Save AI config button
+        const saveAIConfigBtn = document.getElementById('saveAIConfigBtn');
+        if (saveAIConfigBtn) {
+            saveAIConfigBtn.addEventListener('click', () => {
+                this.saveAIConfig();
+            });
+        }
+
+        // Setup AI Gateway button
+        const setupAIGatewayBtn = document.getElementById('setupAIGatewayBtn');
+        if (setupAIGatewayBtn) {
+            setupAIGatewayBtn.addEventListener('click', () => {
+                this.setupAIGateway();
+            });
+        }
+
+        // Test AI button
+        const testAIBtn = document.getElementById('testAIBtn');
+        if (testAIBtn) {
+            testAIBtn.addEventListener('click', () => {
+                this.testAI();
+            });
+        }
+
         // Toggle token visibility
         const toggleTokenVisibility = document.getElementById('toggleTokenVisibility');
         if (toggleTokenVisibility) {
@@ -136,8 +187,14 @@ class CloudflareHelperApp {
 
         // Close modal on Escape key
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.tokenModal && this.tokenModal.classList.contains('active')) {
-                this.closeTokenModal();
+            if (e.key === 'Escape') {
+                if (this.tokenModal && this.tokenModal.classList.contains('active')) {
+                    this.closeTokenModal();
+                }
+                const aiModal = document.getElementById('aiConfigModal');
+                if (aiModal && aiModal.classList.contains('active')) {
+                    this.closeAIConfigModal();
+                }
             }
         });
     }
@@ -458,6 +515,235 @@ ${tokenData.expires_on ? `Läuft ab: ${new Date(tokenData.expires_on).toLocaleDa
     hideLoading() {
         if (this.loadingOverlay) {
             this.loadingOverlay.style.display = 'none';
+        }
+    }
+
+    // ========================================
+    // AI Configuration Methods
+    // ========================================
+
+    /**
+     * Open AI configuration modal
+     */
+    openAIConfigModal() {
+        const aiConfigModal = document.getElementById('aiConfigModal');
+        if (!aiConfigModal) return;
+
+        if (!cloudflareAPI.hasToken()) {
+            this.addMessage('⚠️ Bitte konfiguriere zuerst deinen API-Token, bevor du Workers AI einrichtest.', 'bot');
+            this.openTokenModal();
+            return;
+        }
+
+        aiConfigModal.classList.add('active');
+        
+        // Load existing AI config
+        const config = cloudflareAPI.getAIConfig();
+        
+        const aiEnabled = document.getElementById('aiEnabled');
+        const aiModel = document.getElementById('aiModel');
+        const aiGatewayName = document.getElementById('aiGatewayName');
+        
+        if (aiEnabled) aiEnabled.checked = config.enabled || false;
+        if (aiModel) aiModel.value = config.model || '@cf/meta/llama-3.1-8b-instruct';
+        if (aiGatewayName) aiGatewayName.value = config.gatewayName || '';
+
+        // Show current config if exists
+        if (config.enabled) {
+            this.displayAIConfig(config);
+        }
+
+        // Clear messages
+        const aiError = document.getElementById('aiError');
+        const aiSuccess = document.getElementById('aiSuccess');
+        if (aiError) aiError.style.display = 'none';
+        if (aiSuccess) aiSuccess.style.display = 'none';
+    }
+
+    /**
+     * Close AI configuration modal
+     */
+    closeAIConfigModal() {
+        const aiConfigModal = document.getElementById('aiConfigModal');
+        if (!aiConfigModal) return;
+
+        aiConfigModal.classList.remove('active');
+    }
+
+    /**
+     * Save AI configuration
+     */
+    async saveAIConfig() {
+        const aiEnabled = document.getElementById('aiEnabled');
+        const aiModel = document.getElementById('aiModel');
+        const aiGatewayName = document.getElementById('aiGatewayName');
+        const aiError = document.getElementById('aiError');
+        const aiSuccess = document.getElementById('aiSuccess');
+
+        if (!aiEnabled || !aiModel || !aiError || !aiSuccess) return;
+
+        // Hide previous messages
+        aiError.style.display = 'none';
+        aiSuccess.style.display = 'none';
+
+        const config = {
+            enabled: aiEnabled.checked,
+            model: aiModel.value,
+            gatewayName: aiGatewayName ? aiGatewayName.value.trim() : null
+        };
+
+        try {
+            cloudflareAPI.saveAIConfig(config);
+            
+            aiSuccess.textContent = '✅ AI-Konfiguration erfolgreich gespeichert!';
+            aiSuccess.style.display = 'block';
+            
+            this.updateAIStatus();
+            this.displayAIConfig(config);
+            
+            setTimeout(() => {
+                this.closeAIConfigModal();
+                if (config.enabled) {
+                    this.addMessage('✅ Workers AI wurde aktiviert!', 'bot');
+                } else {
+                    this.addMessage('ℹ️ Workers AI wurde deaktiviert.', 'bot');
+                }
+            }, 1500);
+        } catch (error) {
+            aiError.textContent = `❌ Fehler beim Speichern: ${error.message}`;
+            aiError.style.display = 'block';
+        }
+    }
+
+    /**
+     * Setup AI Gateway
+     */
+    async setupAIGateway() {
+        const aiGatewayName = document.getElementById('aiGatewayName');
+        const aiError = document.getElementById('aiError');
+        const aiSuccess = document.getElementById('aiSuccess');
+
+        if (!aiError || !aiSuccess) return;
+
+        // Hide previous messages
+        aiError.style.display = 'none';
+        aiSuccess.style.display = 'none';
+
+        if (!cloudflareAPI.hasToken()) {
+            aiError.textContent = '❌ Bitte konfiguriere zuerst deinen API-Token.';
+            aiError.style.display = 'block';
+            return;
+        }
+
+        const gatewayName = aiGatewayName ? aiGatewayName.value.trim() || 'cloudflare-helper-gateway' : 'cloudflare-helper-gateway';
+
+        this.showLoading();
+        
+        try {
+            const gateway = await cloudflareAPI.setupAIGateway(gatewayName);
+            this.hideLoading();
+            
+            // Save gateway info
+            cloudflareAPI.saveAIConfig({
+                gatewayId: gateway.id,
+                gatewayName: gateway.name
+            });
+            
+            aiSuccess.innerHTML = `
+✅ <strong>AI Gateway erfolgreich eingerichtet!</strong><br>
+Name: ${gateway.name}<br>
+ID: ${gateway.id}
+            `;
+            aiSuccess.style.display = 'block';
+            
+            // Update gateway name field
+            if (aiGatewayName) {
+                aiGatewayName.value = gateway.name;
+            }
+        } catch (error) {
+            this.hideLoading();
+            aiError.textContent = `❌ Gateway-Setup fehlgeschlagen: ${error.message}`;
+            aiError.style.display = 'block';
+        }
+    }
+
+    /**
+     * Test AI configuration
+     */
+    async testAI() {
+        const aiError = document.getElementById('aiError');
+        const aiSuccess = document.getElementById('aiSuccess');
+
+        if (!aiError || !aiSuccess) return;
+
+        // Hide previous messages
+        aiError.style.display = 'none';
+        aiSuccess.style.display = 'none';
+
+        if (!cloudflareAPI.hasToken()) {
+            aiError.textContent = '❌ Bitte konfiguriere zuerst deinen API-Token.';
+            aiError.style.display = 'block';
+            return;
+        }
+
+        this.showLoading();
+        
+        try {
+            const result = await cloudflareAPI.testAI();
+            this.hideLoading();
+            
+            if (result.success) {
+                aiSuccess.innerHTML = `
+✅ <strong>AI-Test erfolgreich!</strong><br>
+Antwort: ${result.response}
+                `;
+                aiSuccess.style.display = 'block';
+            } else {
+                aiError.textContent = `❌ AI-Test fehlgeschlagen: ${result.error}`;
+                aiError.style.display = 'block';
+            }
+        } catch (error) {
+            this.hideLoading();
+            aiError.textContent = `❌ AI-Test fehlgeschlagen: ${error.message}`;
+            aiError.style.display = 'block';
+        }
+    }
+
+    /**
+     * Display current AI configuration
+     */
+    displayAIConfig(config) {
+        const aiCurrentConfig = document.getElementById('aiCurrentConfig');
+        const aiConfigDetails = document.getElementById('aiConfigDetails');
+        
+        if (!aiCurrentConfig || !aiConfigDetails) return;
+        
+        if (config.enabled) {
+            aiConfigDetails.innerHTML = `
+Status: <strong style="color: green;">Aktiviert</strong><br>
+Modell: ${config.model}<br>
+${config.gatewayName ? `Gateway: ${config.gatewayName}<br>` : ''}
+${config.gatewayId ? `Gateway ID: ${config.gatewayId}` : ''}
+            `;
+            aiCurrentConfig.style.display = 'block';
+        } else {
+            aiCurrentConfig.style.display = 'none';
+        }
+    }
+
+    /**
+     * Update AI status indicator
+     */
+    updateAIStatus() {
+        const statusSpan = document.getElementById('aiStatus');
+        
+        if (statusSpan) {
+            const config = cloudflareAPI.getAIConfig();
+            if (config.enabled) {
+                statusSpan.textContent = '🤖 AI aktiv';
+            } else {
+                statusSpan.textContent = '🤖 AI konfigurieren';
+            }
         }
     }
 }
