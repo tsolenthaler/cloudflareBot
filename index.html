@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudflareHelper - AI Chat Bot</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🤖 CloudflareHelper</h1>
+            <p class="subtitle">AI-gestützter Cloudflare Management Bot</p>
+            <div class="header-actions">
+                <button id="tokenBtn" class="btn btn-secondary">
+                    <span id="tokenStatus">🔑 Token konfigurieren</span>
+                </button>
+                <button id="clearChatBtn" class="btn btn-secondary">🗑️ Chat leeren</button>
+            </div>
+        </header>
+
+        <!-- Chat Container -->
+        <div class="chat-container">
+            <div id="chatMessages" class="chat-messages">
+                <!-- Welcome Message -->
+                <div class="message bot-message">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        <div class="message-text">
+                            <strong>Willkommen beim CloudflareHelper!</strong><br><br>
+                            Ich helfe dir bei der Verwaltung deiner Cloudflare Domains, DNS-Einträge und Rules.<br><br>
+                            <strong>Was ich kann:</strong><br>
+                            • 📋 Domains auflisten und verwalten<br>
+                            • 🌐 DNS-Einträge erstellen, bearbeiten und löschen<br>
+                            • 🔀 Redirect Rules und andere Regeln verwalten<br>
+                            • 🔗 Direkte Links zur Cloudflare-Konsole generieren<br><br>
+                            <strong>Erste Schritte:</strong><br>
+                            1. Konfiguriere deinen Cloudflare API-Token (Button oben rechts)<br>
+                            2. Stelle mir eine Frage oder gib einen Befehl ein<br><br>
+                            <em>Beispiele:</em><br>
+                            • "Zeige mir alle Domains"<br>
+                            • "Liste alle DNS-Einträge für example.com"<br>
+                            • "Erstelle einen A-Record für test.example.com mit IP 192.168.1.1"<br>
+                            • "Zeige alle Weiterleitungen"
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <button class="quick-action-btn" data-command="Zeige mir alle Domains">
+                    📋 Alle Domains
+                </button>
+                <button class="quick-action-btn" data-command="Liste alle Zones">
+                    🌐 Alle Zones
+                </button>
+                <button class="quick-action-btn" data-command="Hilfe">
+                    ❓ Hilfe
+                </button>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-area">
+                <input 
+                    type="text" 
+                    id="userInput" 
+                    placeholder="Stelle eine Frage oder gib einen Befehl ein..."
+                    autocomplete="off"
+                >
+                <button id="sendBtn" class="btn btn-primary">
+                    <span>Senden</span>
+                    <span class="send-icon">➤</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Token Modal -->
+    <div id="tokenModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔑 Cloudflare API-Token konfigurieren</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Dein API-Token wird <strong>ausschließlich lokal im Browser</strong> gespeichert und niemals an einen Server übertragen.</p>
+                
+                <div class="form-group">
+                    <label for="apiToken">API-Token:</label>
+                    <input 
+                        type="password" 
+                        id="apiToken" 
+                        placeholder="Füge deinen Cloudflare API-Token hier ein..."
+                        class="form-input"
+                    >
+                    <button id="toggleTokenVisibility" class="btn-link">👁️ Anzeigen/Verbergen</button>
+                </div>
+
+                <div class="info-box">
+                    <strong>📚 So erhältst du deinen API-Token:</strong><br>
+                    1. Gehe zu <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank">Cloudflare Dashboard → Profile → API Tokens</a><br>
+                    2. Klicke auf "Create Token"<br>
+                    3. Wähle eine Vorlage oder erstelle einen benutzerdefinierten Token<br>
+                    4. Stelle sicher, dass der Token die benötigten Berechtigungen hat:<br>
+                    &nbsp;&nbsp;&nbsp;• Zone:Read, DNS:Edit, Zone Settings:Edit
+                </div>
+
+                <div id="tokenError" class="error-message" style="display: none;"></div>
+                <div id="tokenSuccess" class="success-message" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="testTokenBtn" class="btn btn-secondary">Token testen</button>
+                <button id="saveTokenBtn" class="btn btn-primary">Speichern</button>
+                <button id="deleteTokenBtn" class="btn btn-danger">Token löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loader"></div>
+        <p>Verarbeite Anfrage...</p>
+    </div>
+
+    <!-- Scripts -->
+    <script src="cloudflare-api.js"></script>
+    <script src="chat-bot.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
