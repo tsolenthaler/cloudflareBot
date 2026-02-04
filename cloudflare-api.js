@@ -166,6 +166,16 @@ class CloudflareAPI {
     async verifyToken() {
         try {
             const response = await this.request('/user/tokens/verify');
+            
+            // Auto-load account ID after successful verification
+            if (!this.accountId) {
+                try {
+                    await this.getAccounts();
+                } catch (e) {
+                    console.warn('Could not load accounts:', e);
+                }
+            }
+            
             return {
                 success: true,
                 data: response.result
@@ -191,7 +201,14 @@ class CloudflareAPI {
      */
     async getAccounts() {
         const response = await this.request('/accounts');
-        return response.result;
+        const accounts = response.result;
+        
+        // Auto-save first account ID if not set
+        if (accounts.length > 0 && !this.accountId) {
+            this.accountId = accounts[0].id;
+        }
+        
+        return accounts;
     }
 
     /**
@@ -571,10 +588,11 @@ class CloudflareAPI {
      * Create or get AI Gateway
      */
     async setupAIGateway(gatewayName = 'cloudflare-helper-gateway') {
+        // Ensure we have an account ID
         if (!this.accountId) {
             const accounts = await this.getAccounts();
             if (accounts.length === 0) {
-                throw new Error('Kein Account gefunden');
+                throw new Error('Kein Account gefunden. Stelle sicher, dass dein API-Token Zugriff auf mindestens einen Account hat.');
             }
             this.accountId = accounts[0].id;
         }
