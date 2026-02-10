@@ -421,36 +421,44 @@ class ChatBot {
             }
 
             let responseMessage = `<strong>🌐 DNS-Einträge für ${zone.name} (${records.length}):</strong><br><br>`;
+            responseMessage += `
+<table class="info-table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Typ</th>
+            <th>Inhalt</th>
+            <th>TTL</th>
+            <th>Proxy</th>
+            <th>Priorität</th>
+            <th>ID</th>
+        </tr>
+    </thead>
+    <tbody>
+`;
 
-            // Group records by type
-            const recordsByType = {};
-            records.forEach(record => {
-                if (!recordsByType[record.type]) {
-                    recordsByType[record.type] = [];
-                }
-                recordsByType[record.type].push(record);
+            records.forEach((record) => {
+                const ttl = record.ttl === 1 ? 'Auto' : record.ttl;
+                const proxied = record.proxied === undefined ? '-' : (record.proxied ? '🟠 Proxied' : '⚪ DNS only');
+                const priority = record.priority ? record.priority : '-';
+
+                responseMessage += `
+        <tr>
+            <td>${record.name}</td>
+            <td>${record.type}</td>
+            <td><code>${record.content}</code></td>
+            <td>${ttl}</td>
+            <td>${proxied}</td>
+            <td>${priority}</td>
+            <td><code>${record.id}</code></td>
+        </tr>
+                `;
             });
 
-            Object.keys(recordsByType).sort().forEach(type => {
-                responseMessage += `<strong>${type} Records (${recordsByType[type].length}):</strong><br>`;
-                recordsByType[type].forEach(record => {
-                    const proxied = record.proxied ? '🟠 Proxied' : '⚪ DNS only';
-                    responseMessage += `
-<div class="info-card">
-    <div class="info-card-header">${record.name}</div>
-    <div class="info-card-body">
-        <strong>Typ:</strong> ${record.type}<br>
-        <strong>Inhalt:</strong> <code>${record.content}</code><br>
-        <strong>TTL:</strong> ${record.ttl === 1 ? 'Auto' : record.ttl}<br>
-        ${record.proxied !== undefined ? `<strong>Proxy:</strong> ${proxied}<br>` : ''}
-        ${record.priority ? `<strong>Priorität:</strong> ${record.priority}<br>` : ''}
-        <strong>ID:</strong> <code>${record.id}</code>
-    </div>
-</div>
-                    `;
-                });
-                responseMessage += '<br>';
-            });
+            responseMessage += `
+    </tbody>
+</table>
+            `;
 
             responseMessage += `<br><a href="${this.api.getDNSDashboardURL(zone.name, zone.account?.id)}" target="_blank">🔗 DNS-Einträge in Cloudflare bearbeiten</a>`;
 
