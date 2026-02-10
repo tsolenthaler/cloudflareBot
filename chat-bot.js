@@ -834,7 +834,7 @@ Versuche es mit einem dieser Befehle:<br>
                     return `
 <tr>
     <td>${result.domain}</td>
-    <td colspan="3">❌ ${result.error}</td>
+    <td colspan="4">❌ ${result.error}</td>
 </tr>
                     `;
                 }
@@ -842,6 +842,7 @@ Versuche es mit einem dieser Befehle:<br>
                 const ipList = result.ips.length > 0 ? result.ips.join('<br>') : 'N/A';
                 const isp = result.isp || 'N/A';
                 const nsList = result.nameservers.length > 0 ? result.nameservers.join('<br>') : 'N/A';
+                const mxList = result.mxRecords.length > 0 ? result.mxRecords.join('<br>') : 'N/A';
 
                 return `
 <tr>
@@ -849,6 +850,7 @@ Versuche es mit einem dieser Befehle:<br>
     <td>${ipList}</td>
     <td>${isp}</td>
     <td>${nsList}</td>
+    <td>${mxList}</td>
 </tr>
                 `;
             }).join('');
@@ -862,6 +864,7 @@ Versuche es mit einem dieser Befehle:<br>
             <th>IP</th>
             <th>Hoster (ISP)</th>
             <th>Nameserver</th>
+            <th>MX</th>
         </tr>
     </thead>
     <tbody>
@@ -883,20 +886,22 @@ Versuche es mit einem dieser Befehle:<br>
     }
 
     async resolveDomainInfo(domain) {
-        const [aRecords, nsRecords] = await Promise.all([
+        const [aRecords, nsRecords, mxRecords] = await Promise.all([
             this.fetchDnsRecords(domain, 'A'),
-            this.fetchDnsRecords(domain, 'NS')
+            this.fetchDnsRecords(domain, 'NS'),
+            this.fetchDnsRecords(domain, 'MX')
         ]);
 
         const ips = aRecords.map((record) => record.data).filter(Boolean);
         const nameservers = nsRecords.map((record) => record.data).filter(Boolean);
+        const mxEntries = mxRecords.map((record) => record.data).filter(Boolean);
         let isp = null;
 
         if (ips.length > 0) {
             isp = await this.fetchIpOrganization(ips[0]);
         }
 
-        return { ips, nameservers, isp };
+        return { ips, nameservers, mxRecords: mxEntries, isp };
     }
 
     async fetchDnsRecords(domain, type) {
