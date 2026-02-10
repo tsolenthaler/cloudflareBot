@@ -330,6 +330,7 @@ class ChatBot {
                     message: `❌ Konnte Domain-Namen nicht aus der Nachricht extrahieren.<br><br>
 <strong>Beispiele:</strong><br>
 • "Füge Domain example.com hinzu"<br>
+• "Füge Domain example.com dem Account XY hinzu"<br>
 • "Erstelle Domain example.com"<br>
 • "Add example.com"`
                 };
@@ -360,11 +361,40 @@ class ChatBot {
                 // Domain doesn't exist, continue with creation
             }
 
-            // Get account ID from message or use first account
+            // Get account ID or account name from message or use first account
             let accountId = null;
-            const accountMatch = message.match(/(?:account|account-id)\s+([a-f0-9]{32})/i);
-            if (accountMatch) {
-                accountId = accountMatch[1];
+            const accountIdMatch = message.match(/account-id\s+([a-f0-9]{32})/i) ||
+                                   message.match(/account\s+id\s+([a-f0-9]{32})/i) ||
+                                   message.match(/account\s+([a-f0-9]{32})/i);
+            if (accountIdMatch) {
+                accountId = accountIdMatch[1];
+            } else {
+                const accountNameMatch = message.match(/account\s+([a-zA-Z0-9 ._-]+?)(?:\s+(?:hinzu|erstellen|anlegen|add|create)|$)/i);
+                if (accountNameMatch) {
+                    const accountName = accountNameMatch[1].trim();
+                    if (accountName) {
+                        const accounts = await this.api.getAccounts();
+                        const exactMatch = accounts.find(acc => acc.name.toLowerCase() === accountName.toLowerCase());
+                        const partialMatches = accounts.filter(acc => acc.name.toLowerCase().includes(accountName.toLowerCase()));
+
+                        if (exactMatch) {
+                            accountId = exactMatch.id;
+                        } else if (partialMatches.length === 1) {
+                            accountId = partialMatches[0].id;
+                        } else if (partialMatches.length > 1) {
+                            const matchList = partialMatches.slice(0, 5).map(acc => `• ${acc.name}`).join('<br>');
+                            return {
+                                type: 'error',
+                                message: `❌ Mehrere Accounts passen zu "${accountName}".<br><br>Bitte gib den exakten Account-Namen oder die Account-ID an.<br><br><strong>Treffer:</strong><br>${matchList}`
+                            };
+                        } else {
+                            return {
+                                type: 'error',
+                                message: `❌ Kein Account mit dem Namen "${accountName}" gefunden.<br><br>Bitte gib den exakten Account-Namen oder die Account-ID an.`
+                            };
+                        }
+                    }
+                }
             }
 
             // Create the zone
