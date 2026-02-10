@@ -245,27 +245,44 @@ class ChatBot {
             }
 
             let message = `<strong>📋 Gefundene Domains/Zones (${zones.length}):</strong><br><br>`;
+            message += `
+<table class="info-table">
+    <thead>
+        <tr>
+            <th>Domain</th>
+            <th>Zone-ID</th>
+            <th>Account</th>
+            <th>Cloudflare</th>
+            <th>DNS</th>
+            <th>Rules</th>
+        </tr>
+    </thead>
+    <tbody>
+`;
 
-            zones.forEach((zone, index) => {
+            zones.forEach((zone) => {
                 const dashboardURL = this.api.getZoneDashboardURL(zone.name, zone.account?.id);
-                const status = zone.status === 'active' ? '✅' : '⚠️';
-                
+                const dnsURL = this.api.getDNSDashboardURL(zone.name, zone.account?.id);
+                const rulesURL = this.api.getRulesDashboardURL(zone.name, zone.account?.id);
+                const accountName = zone.account?.name || '-';
+                const statusIcon = zone.status === 'active' ? '✅' : '⚠️';
+
                 message += `
-<div class="info-card">
-    <div class="info-card-header">${status} ${zone.name}</div>
-    <div class="info-card-body">
-        <strong>Status:</strong> ${zone.status}<br>
-        <strong>Zone-ID:</strong> <code>${zone.id}</code><br>
-        ${zone.account?.name ? `<strong>Account:</strong> ${zone.account.name}<br>` : ''}
-    </div>
-    <div class="info-card-footer">
-        <a href="${dashboardURL}" target="_blank">🔗 In Cloudflare öffnen</a> | 
-        <a href="${this.api.getDNSDashboardURL(zone.name, zone.account?.id)}" target="_blank">DNS</a> | 
-        <a href="${this.api.getRulesDashboardURL(zone.name, zone.account?.id)}" target="_blank">Rules</a>
-    </div>
-</div>
+        <tr>
+            <td>${statusIcon} ${zone.name}</td>
+            <td><code>${zone.id}</code></td>
+            <td>${accountName}</td>
+            <td><a href="${dashboardURL}" target="_blank">Link</a></td>
+            <td><a href="${dnsURL}" target="_blank">DNS</a></td>
+            <td><a href="${rulesURL}" target="_blank">Rules</a></td>
+        </tr>
                 `;
             });
+
+            message += `
+    </tbody>
+</table>
+            `;
 
             // Store last zone for context
             if (zones.length > 0) {
