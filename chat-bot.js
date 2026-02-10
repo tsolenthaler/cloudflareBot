@@ -42,6 +42,11 @@ class ChatBot {
             return await this.listZones();
         }
 
+        // List all accounts
+        if (this.isListAccountsCommand(normalizedMessage)) {
+            return await this.listAccounts();
+        }
+
         // Export DNS records
         if (this.isExportDNSCommand(normalizedMessage)) {
             return await this.exportDNSRecords(message);
@@ -143,6 +148,14 @@ class ChatBot {
     }
 
     /**
+     * Check if command is to list accounts
+     */
+    isListAccountsCommand(message) {
+        return (message.includes('zeige') || message.includes('liste') || message.includes('alle')) &&
+               (message.includes('account') || message.includes('accounts'));
+    }
+
+    /**
      * Check if command is to add a domain
      */
     isAddDomainCommand(message) {
@@ -236,6 +249,7 @@ class ChatBot {
 
 <strong>Allgemein:</strong><br>
 • "Hilfe" - Diese Hilfe anzeigen<br>
+• "Alle Accounts" - Accounts auflisten<br>
 • Token über den Button oben rechts konfigurieren<br><br>
 
 <em>Tipp: Du kannst Befehle in natürlicher Sprache eingeben!</em>
@@ -310,6 +324,61 @@ class ChatBot {
             return {
                 type: 'error',
                 message: `❌ Fehler beim Abrufen der Domains: ${error.message}`
+            };
+        }
+    }
+
+    /**
+     * List all accounts
+     */
+    async listAccounts() {
+        try {
+            const accounts = await this.api.getAccounts();
+
+            if (accounts.length === 0) {
+                return {
+                    type: 'info',
+                    message: 'ℹ️ Keine Accounts gefunden. Möglicherweise hat dein API-Token keine Berechtigung oder es sind keine Accounts vorhanden.'
+                };
+            }
+
+            let message = `<strong>👤 Accounts (${accounts.length}):</strong><br><br>`;
+            message += `
+<table class="info-table">
+    <thead>
+        <tr>
+            <th>Account</th>
+            <th>Account-ID</th>
+            <th>Cloudflare</th>
+        </tr>
+    </thead>
+    <tbody>
+`;
+
+            accounts.forEach((account) => {
+                const dashboardURL = `https://dash.cloudflare.com/${account.id}`;
+                message += `
+        <tr>
+            <td>${account.name}</td>
+            <td><code>${account.id}</code></td>
+            <td><a href="${dashboardURL}" target="_blank">Link</a></td>
+        </tr>
+                `;
+            });
+
+            message += `
+    </tbody>
+</table>
+            `;
+
+            return {
+                type: 'success',
+                message: message
+            };
+        } catch (error) {
+            return {
+                type: 'error',
+                message: `❌ Fehler beim Abrufen der Accounts: ${error.message}`
             };
         }
     }
