@@ -1,4 +1,4 @@
-# CloudflareHelper - AI-gestützter Cloudflare Management Bot
+# CloudflareHelper - Cloudflare Management Bot
 
 Ein Web-basierter Chat-Bot zur Verwaltung von Cloudflare Domains, DNS-Einträgen und Rules.
 

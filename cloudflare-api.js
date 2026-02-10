@@ -13,9 +13,6 @@ class CloudflareAPI {
         // Der Proxy kann potenziell deinen API-Token sehen
         this.useCorsProxy = localStorage.getItem('use_cors_proxy') === 'true';
         this.corsProxyURL = 'https://corsproxy.io/?';
-        
-        // Workers AI Configuration
-        this.aiConfig = this.getStoredAIConfig();
     }
 
     /**
@@ -40,49 +37,6 @@ class CloudflareAPI {
         localStorage.removeItem('cloudflare_api_token');
         this.token = null;
         this.accountId = null;
-    }
-
-    /**
-     * Get stored AI configuration from localStorage
-     */
-    getStoredAIConfig() {
-        const stored = localStorage.getItem('cloudflare_ai_config');
-        if (stored) {
-            try {
-                return JSON.parse(stored);
-            } catch (e) {
-                console.error('Failed to parse AI config:', e);
-            }
-        }
-        return {
-            enabled: false,
-            model: '@cf/meta/llama-3.1-8b-instruct',
-            accountId: null,
-            gatewayId: null,
-            gatewayName: null
-        };
-    }
-
-    /**
-     * Save AI configuration to localStorage
-     */
-    saveAIConfig(config) {
-        this.aiConfig = { ...this.aiConfig, ...config };
-        localStorage.setItem('cloudflare_ai_config', JSON.stringify(this.aiConfig));
-    }
-
-    /**
-     * Get current AI configuration
-     */
-    getAIConfig() {
-        return { ...this.aiConfig };
-    }
-
-    /**
-     * Check if AI is configured
-     */
-    hasAIConfig() {
-        return this.aiConfig.enabled && this.aiConfig.model && this.accountId;
     }
 
     /**
@@ -190,31 +144,6 @@ class CloudflareAPI {
     }
 
     /**
-     * Check token permissions for Workers AI
-     */
-    async checkAIPermissions() {
-        try {
-            // Simply try to access accounts as the real test
-            const accounts = await this.getAccounts();
-            
-            return {
-                hasPermissions: true,
-                message: `API-Token hat Zugriff auf ${accounts.length} Account(s)`,
-                requiredPermissions: ['Account:Read für Workers AI'],
-                accountCount: accounts.length
-            };
-        } catch (error) {
-            console.error('Error checking AI permissions:', error);
-            return {
-                hasPermissions: false,
-                message: error.message || 'Kein Zugriff auf Accounts möglich',
-                requiredPermissions: ['Account:Read für Workers AI'],
-                accountCount: 0
-            };
-        }
-    }
-
-    /**
      * Get all accounts
      */
     async getAccounts() {
@@ -293,7 +222,7 @@ class CloudflareAPI {
             method: 'POST',
             body: JSON.stringify(zoneData)
         });
-        
+
         return response.result;
     }
 
@@ -369,10 +298,9 @@ class CloudflareAPI {
     }
 
     /**
-     * Create a redirect rule (using Bulk Redirects)
+     * Create a redirect rule (using Rulesets API)
      */
     async createRedirectRule(zoneId, ruleData) {
-        // This uses the new Redirect Rules API
         const response = await this.request(`/zones/${zoneId}/rulesets`, {
             method: 'POST',
             body: JSON.stringify({
@@ -399,95 +327,46 @@ class CloudflareAPI {
     }
 
     /**
-     * Get ruleset by ID
+     * Build Cloudflare dashboard URL for a zone
      */
-    async getRuleset(zoneId, rulesetId) {
-        const response = await this.request(`/zones/${zoneId}/rulesets/${rulesetId}`);
-        return response.result;
-    }
-
-    /**
-     * Update ruleset
-     */
-    async updateRuleset(zoneId, rulesetId, rulesetData) {
-        const response = await this.request(`/zones/${zoneId}/rulesets/${rulesetId}`, {
-            method: 'PUT',
-            body: JSON.stringify(rulesetData)
-        });
-        return response.result;
-    }
-
-    /**
-     * Delete ruleset
-     */
-    async deleteRuleset(zoneId, rulesetId) {
-        const response = await this.request(`/zones/${zoneId}/rulesets/${rulesetId}`, {
-            method: 'DELETE'
-        });
-        return response.result;
-    }
-
-    /**
-     * Get zone settings
-     */
-    async getZoneSettings(zoneId) {
-        const response = await this.request(`/zones/${zoneId}/settings`);
-        return response.result;
-    }
-
-    /**
-     * Update zone setting
-     */
-    async updateZoneSetting(zoneId, settingId, value) {
-        const response = await this.request(`/zones/${zoneId}/settings/${settingId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ value })
-        });
-        return response.result;
-    }
-
-    /**
-     * Generate Cloudflare Dashboard URL for a zone
-     */
-    getZoneDashboardURL(zoneIdOrName, accountId = null) {
+    getZoneDashboardURL(zoneName, accountId = null) {
+        const encoded = encodeURIComponent(zoneName);
         if (accountId) {
-            return `https://dash.cloudflare.com/${accountId}/${zoneIdOrName}`;
+            return `https://dash.cloudflare.com/${accountId}/${encoded}`;
         }
-        return `https://dash.cloudflare.com/?to=/:account/${zoneIdOrName}`;
+        return `https://dash.cloudflare.com/${encoded}`;
     }
 
     /**
-     * Generate Cloudflare Dashboard URL for DNS records
+     * Build DNS dashboard URL for a zone
      */
-    getDNSDashboardURL(zoneIdOrName, accountId = null) {
-        if (accountId) {
-            return `https://dash.cloudflare.com/${accountId}/${zoneIdOrName}/dns`;
-        }
-        return `https://dash.cloudflare.com/?to=/:account/${zoneIdOrName}/dns`;
+    getDNSDashboardURL(zoneName, accountId = null) {
+        const base = this.getZoneDashboardURL(zoneName, accountId);
+        return `${base}/dns/records`;
     }
 
     /**
-     * Generate Cloudflare Dashboard URL for rules
+     * Build rules dashboard URL for a zone
      */
-    getRulesDashboardURL(zoneIdOrName, accountId = null) {
-        if (accountId) {
-            return `https://dash.cloudflare.com/${accountId}/${zoneIdOrName}/rules`;
-        }
-        return `https://dash.cloudflare.com/?to=/:account/${zoneIdOrName}/rules`;
+    getRulesDashboardURL(zoneName, accountId = null) {
+        const base = this.getZoneDashboardURL(zoneName, accountId);
+        return `${base}/rules`;
     }
 
     /**
-     * Format DNS record for display
+     * Format a DNS record to normalized fields
      */
     formatDNSRecord(record) {
+        if (!record) return {};
+
         return {
             id: record.id,
             type: record.type,
             name: record.name,
             content: record.content,
-            ttl: record.ttl === 1 ? 'Auto' : record.ttl,
-            proxied: record.proxied || false,
-            priority: record.priority || null
+            ttl: record.ttl,
+            proxied: record.proxied,
+            priority: record.priority
         };
     }
 
@@ -552,243 +431,6 @@ class CloudflareAPI {
         return response.result;
     }
 
-    // ========================================
-    // Workers AI Methods
-    // ========================================
-
-    /**
-     * Get available Workers AI models
-     */
-    async getAIModels() {
-        if (!this.accountId) {
-            const accounts = await this.getAccounts();
-            if (accounts.length === 0) {
-                throw new Error('Kein Account gefunden');
-            }
-            this.accountId = accounts[0].id;
-        }
-
-        // List of popular Cloudflare Workers AI models
-        // Note: The API doesn't provide a direct list endpoint, so we return known models
-        return [
-            {
-                id: '@cf/meta/llama-3.1-8b-instruct',
-                name: 'Llama 3.1 8B Instruct',
-                type: 'text-generation',
-                description: 'Fast and efficient text generation'
-            },
-            {
-                id: '@cf/meta/llama-3.1-70b-instruct',
-                name: 'Llama 3.1 70B Instruct',
-                type: 'text-generation',
-                description: 'More powerful text generation'
-            },
-            {
-                id: '@cf/meta/llama-3-8b-instruct',
-                name: 'Llama 3 8B Instruct',
-                type: 'text-generation',
-                description: 'Previous generation Llama model'
-            },
-            {
-                id: '@cf/mistral/mistral-7b-instruct-v0.1',
-                name: 'Mistral 7B Instruct',
-                type: 'text-generation',
-                description: 'Mistral AI instruction model'
-            },
-            {
-                id: '@cf/qwen/qwen1.5-14b-chat-awq',
-                name: 'Qwen 1.5 14B Chat',
-                type: 'text-generation',
-                description: 'Qwen chat model'
-            },
-            {
-                id: '@cf/google/gemma-7b-it',
-                name: 'Gemma 7B IT',
-                type: 'text-generation',
-                description: 'Google Gemma instruction tuned'
-            }
-        ];
-    }
-
-    /**
-     * Create or get AI Gateway
-     */
-    async setupAIGateway(gatewayName = 'cloudflare-helper-gateway') {
-        try {
-            // Warning if CORS proxy is enabled
-            if (this.useCorsProxy) {
-                console.warn('CORS Proxy ist aktiviert - AI Gateway Setup funktioniert damit nicht!');
-                throw new Error('AI Gateway kann nicht über CORS Proxy erstellt werden. Bitte deaktiviere den CORS Proxy in den Einstellungen oder erstelle das Gateway manuell im Cloudflare Dashboard.');
-            }
-            
-            // Ensure we have an account ID (prefer from AI config, then cached, then fetch)
-            let targetAccountId = this.aiConfig.accountId || this.accountId;
-            
-            if (!targetAccountId) {
-                const accounts = await this.getAccounts();
-                if (accounts.length === 0) {
-                    throw new Error('Kein Account gefunden. Stelle sicher, dass dein API-Token Zugriff auf mindestens einen Account hat.');
-                }
-                targetAccountId = accounts[0].id;
-                this.accountId = targetAccountId;
-            }
-
-            // Temporarily use the target account ID for this operation
-            const originalAccountId = this.accountId;
-            this.accountId = targetAccountId;
-
-            try {
-                // Try to get existing gateways
-                const gateways = await this.getAIGateways();
-                const existing = gateways.find(g => g.name === gatewayName);
-                
-                if (existing) {
-                    return existing;
-                }
-
-                // Create new gateway
-                return await this.createAIGateway(gatewayName);
-            } finally {
-                // Restore original account ID
-                this.accountId = originalAccountId;
-            }
-        } catch (error) {
-            console.error('AI Gateway setup error:', error);
-            if (error.message.includes('Unauthorized') || error.message.includes('insufficient')) {
-                throw new Error('Dein API-Token hat keine Berechtigung für Workers AI. Erforderliche Berechtigungen: account:read, ai:read, ai:write.');
-            }
-            if (error.message.includes('not found')) {
-                throw new Error('Workers AI ist für diesen Account nicht verfügbar. Bitte überprüfe, ob Workers AI für deinen Account aktiviert ist.');
-            }
-            throw error;
-        }
-    }
-
-    /**
-     * Get all AI Gateways
-     */
-    async getAIGateways() {
-        try {
-            if (!this.accountId) {
-                const accounts = await this.getAccounts();
-                if (accounts.length === 0) {
-                    throw new Error('Kein Account gefunden');
-                }
-                this.accountId = accounts[0].id;
-            }
-
-            const response = await this.request(`/accounts/${this.accountId}/ai-gateway/gateways`);
-            return response.result || [];
-        } catch (error) {
-            console.error('Failed to fetch AI Gateways:', error);
-            if (error.message.includes('Unauthorized') || error.message.includes('insufficient')) {
-                throw new Error('Dein API-Token hat keine Berechtigung für Workers AI Gateways. Erforderliche Berechtigungen: ai:read.');
-            }
-            if (error.message.includes('404') || error.message.includes('not found')) {
-                console.warn('AI Gateways endpoint nicht verfügbar, aber das ist OK');
-                return [];
-            }
-            throw error;
-        }
-    }
-
-    /**
-     * Create new AI Gateway
-     */
-    async createAIGateway(name) {
-        try {
-            if (!this.accountId) {
-                const accounts = await this.getAccounts();
-                if (accounts.length === 0) {
-                    throw new Error('Kein Account gefunden');
-                }
-                this.accountId = accounts[0].id;
-            }
-
-            const response = await this.request(`/accounts/${this.accountId}/ai-gateway/gateways`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    name: name,
-                    cache_ttl: 3600,
-                    collect_logs: true,
-                    rate_limiting_interval: 60,
-                    rate_limiting_limit: 100,
-                    rate_limiting_technique: 'sliding'
-                })
-            });
-            return response.result;
-        } catch (error) {
-            console.error('Failed to create AI Gateway:', error);
-            if (error.message.includes('Unauthorized') || error.message.includes('insufficient') || error.message.includes('Authentication error') || error.message.includes('403')) {
-                throw new Error('Dein API-Token hat keine SCHREIB-Berechtigung für Workers AI Gateways. Du hast vermutlich nur Read-Zugriff. Erforderlich: Account - Workers AI:Edit Berechtigung.');
-            }
-            if (error.message.includes('already exists')) {
-                throw new Error('Ein Gateway mit diesem Namen existiert bereits.');
-            }
-            throw error;
-        }
-    }
-
-    /**
-     * Run AI inference using Workers AI
-     */
-    async runAI(messages, model = null) {
-        // Use account ID from AI config or fallback to default
-        let targetAccountId = this.aiConfig.accountId || this.accountId;
-        
-        if (!targetAccountId) {
-            const accounts = await this.getAccounts();
-            if (accounts.length === 0) {
-                throw new Error('Kein Account gefunden');
-            }
-            targetAccountId = accounts[0].id;
-        }
-
-        const selectedModel = model || this.aiConfig.model || '@cf/meta/llama-3.1-8b-instruct';
-
-        const response = await this.request(
-            `/accounts/${targetAccountId}/ai/run/${selectedModel}`,
-            {
-                method: 'POST',
-                body: JSON.stringify({
-                    messages: messages
-                })
-            }
-        );
-
-        return response.result;
-    }
-
-    /**
-     * Send a chat message to Workers AI
-     */
-    async chatWithAI(userMessage, conversationHistory = []) {
-        const messages = [
-            ...conversationHistory,
-            { role: 'user', content: userMessage }
-        ];
-
-        const result = await this.runAI(messages);
-        return result.response || result.content || result;
-    }
-
-    /**
-     * Test AI configuration
-     */
-    async testAI() {
-        try {
-            const response = await this.chatWithAI('Hello! Say "OK" if you can hear me.');
-            return {
-                success: true,
-                response: response
-            };
-        } catch (error) {
-            return {
-                success: false,
-                error: error.message
-            };
-        }
-    }
 }
 
 // Export for use in other scripts
