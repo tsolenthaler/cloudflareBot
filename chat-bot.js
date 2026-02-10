@@ -42,6 +42,11 @@ class ChatBot {
             return await this.listZones();
         }
 
+        // Export DNS records
+        if (this.isExportDNSCommand(normalizedMessage)) {
+            return await this.exportDNSRecords(message);
+        }
+
         // Add domain
         if (this.isAddDomainCommand(normalizedMessage)) {
             return await this.addDomain(message);
@@ -152,6 +157,14 @@ class ChatBot {
     isListDNSCommand(message) {
         return (message.includes('dns') || message.includes('einträge') || message.includes('records')) &&
                (message.includes('liste') || message.includes('zeige') || message.includes('alle'));
+    }
+
+    /**
+     * Check if command is to export DNS records
+     */
+    isExportDNSCommand(message) {
+        return (message.includes('export') || message.includes('exportier') || message.includes('exportiere')) &&
+               (message.includes('dns') || message.includes('einträge') || message.includes('records'));
     }
 
     /**
@@ -475,6 +488,103 @@ class ChatBot {
                 message: `❌ Fehler beim Abrufen der DNS-Einträge: ${error.message}`
             };
         }
+    }
+
+    /**
+     * Export DNS records to a downloadable TXT file
+     */
+    async exportDNSRecords(message) {
+        try {
+            const domainMatch = message.match(/für\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i) ||
+                              message.match(/von\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i) ||
+                              message.match(/([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+
+            let zone;
+            if (domainMatch) {
+                const domainName = domainMatch[1];
+                zone = await this.api.getZoneByName(domainName);
+            } else if (this.context.lastZone) {
+                zone = this.context.lastZone;
+            } else {
+                return {
+                    type: 'error',
+                    message: '❌ Bitte gib einen Domain-Namen an, z.B. "Exportiere alle DNS-Einträge von example.com"'
+                };
+            }
+
+            const records = await this.api.getDNSRecords(zone.id);
+
+            if (records.length === 0) {
+                return {
+                    type: 'info',
+                    message: `ℹ️ Keine DNS-Einträge für ${zone.name} gefunden.`
+                };
+            }
+
+            const exportText = this.buildDNSExportText(zone, records);
+            const fileName = `dns-export-${zone.name}-${this.getExportDateStamp()}.txt`;
+            const downloadUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(exportText)}`;
+
+            // Store zone in context
+            this.context.lastZone = zone;
+
+            return {
+                type: 'success',
+                message: `✅ Export bereit.<br><br>
+<a href="${downloadUrl}" download="${fileName}">⬇️ TXT-Datei herunterladen</a>`
+            };
+        } catch (error) {
+            return {
+                type: 'error',
+                message: `❌ Fehler beim Export der DNS-Einträge: ${error.message}`
+            };
+        }
+    }
+
+    /**
+     * Build TXT export content for DNS records
+     */
+    buildDNSExportText(zone, records) {
+        const lines = [];
+        lines.push(`DNS Export for ${zone.name}`);
+        lines.push(`Zone ID: ${zone.id}`);
+        if (zone.account?.name) {
+            lines.push(`Account: ${zone.account.name}`);
+        }
+        lines.push(`Exported: ${new Date().toISOString()}`);
+        lines.push('');
+        lines.push('Name\tType\tContent\tTTL\tProxied\tPriority\tID');
+
+        records.forEach((record) => {
+            const ttl = record.ttl === 1 ? 'Auto' : record.ttl;
+            const proxied = record.proxied === undefined ? '-' : (record.proxied ? 'Proxied' : 'DNS only');
+            const priority = record.priority ? record.priority : '-';
+            const line = [
+                record.name,
+                record.type,
+                record.content,
+                ttl,
+                proxied,
+                priority,
+                record.id
+            ].join('\t');
+            lines.push(line);
+        });
+
+        return lines.join('\n');
+    }
+
+    /**
+     * Build a timestamp for export file names
+     */
+    getExportDateStamp() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        return `${year}${month}${day}-${hours}${minutes}`;
     }
 
     /**
