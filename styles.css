@@ -308,6 +308,37 @@ body {
     font-size: 0.85rem;
 }
 
+/* Tables in Messages */
+.info-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.info-table th,
+.info-table td {
+    border: 1px solid var(--border-color);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.info-table th {
+    background: var(--bg-color);
+    font-weight: 700;
+}
+
+@media (max-width: 700px) {
+    .info-table {
+        display: block;
+        overflow-x: auto;
+    }
+}
+
 /* Quick Actions */
 .quick-actions {
     display: flex;

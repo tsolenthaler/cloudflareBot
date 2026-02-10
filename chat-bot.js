@@ -18,6 +18,11 @@ class ChatBot {
     async processMessage(message) {
         const normalizedMessage = message.toLowerCase().trim();
 
+        // Domain-only lookup (no token required)
+        if (this.isDomainListMessage(message)) {
+            return await this.getDomainInfoTable(message);
+        }
+
         // Check if token is configured
         if (!this.api.hasToken() && !this.isTokenRelatedCommand(normalizedMessage)) {
             return {
@@ -81,6 +86,37 @@ class ChatBot {
      */
     isTokenRelatedCommand(message) {
         return message.includes('token') || message.includes('api');
+    }
+
+    /**
+     * Check if message contains only one or more domains
+     */
+    isDomainListMessage(message) {
+        return this.extractDomains(message).length > 0;
+    }
+
+    /**
+     * Extract domains if message contains only domains
+     */
+    extractDomains(message) {
+        const trimmed = message.trim();
+        if (!trimmed) return [];
+
+        const tokens = trimmed.split(/[\s,;]+/).filter(Boolean);
+        if (tokens.length === 0) return [];
+
+        const domainRegex = /^[a-z0-9]+([-.]?[a-z0-9]+)*\.[a-z]{2,}$/i;
+        const domains = [];
+
+        for (const token of tokens) {
+            const cleaned = token.replace(/^\.+|\.+$/g, '');
+            if (!domainRegex.test(cleaned)) {
+                return [];
+            }
+            domains.push(cleaned.toLowerCase());
+        }
+
+        return [...new Set(domains)];
     }
 
     /**
@@ -769,6 +805,123 @@ Versuche es mit einem dieser Befehle:<br>
 <em>Du kannst auch die Quick-Action-Buttons unter dem Chat verwenden!</em>
             `
         };
+    }
+
+    /**
+     * Return a table for domain lookups (IP, ISP, nameserver)
+     */
+    async getDomainInfoTable(message) {
+        const domains = this.extractDomains(message);
+
+        if (domains.length === 0) {
+            return this.getDefaultResponse();
+        }
+
+        try {
+            const results = await Promise.all(
+                domains.map(async (domain) => {
+                    try {
+                        const info = await this.resolveDomainInfo(domain);
+                        return { domain, ...info };
+                    } catch (error) {
+                        return { domain, error: error.message || 'Unbekannter Fehler' };
+                    }
+                })
+            );
+
+            const tableRows = results.map((result) => {
+                if (result.error) {
+                    return `
+<tr>
+    <td>${result.domain}</td>
+    <td colspan="3">❌ ${result.error}</td>
+</tr>
+                    `;
+                }
+
+                const ipList = result.ips.length > 0 ? result.ips.join('<br>') : 'N/A';
+                const isp = result.isp || 'N/A';
+                const nsList = result.nameservers.length > 0 ? result.nameservers.join('<br>') : 'N/A';
+
+                return `
+<tr>
+    <td>${result.domain}</td>
+    <td>${ipList}</td>
+    <td>${isp}</td>
+    <td>${nsList}</td>
+</tr>
+                `;
+            }).join('');
+
+            const table = `
+<strong>🔎 Domain-Info (${results.length}):</strong><br><br>
+<table class="info-table">
+    <thead>
+        <tr>
+            <th>Domain</th>
+            <th>IP</th>
+            <th>Hoster (ISP)</th>
+            <th>Nameserver</th>
+        </tr>
+    </thead>
+    <tbody>
+        ${tableRows}
+    </tbody>
+</table>
+            `;
+
+            return {
+                type: 'success',
+                message: table
+            };
+        } catch (error) {
+            return {
+                type: 'error',
+                message: `❌ Fehler beim Abrufen der Domain-Infos: ${error.message}`
+            };
+        }
+    }
+
+    async resolveDomainInfo(domain) {
+        const [aRecords, nsRecords] = await Promise.all([
+            this.fetchDnsRecords(domain, 'A'),
+            this.fetchDnsRecords(domain, 'NS')
+        ]);
+
+        const ips = aRecords.map((record) => record.data).filter(Boolean);
+        const nameservers = nsRecords.map((record) => record.data).filter(Boolean);
+        let isp = null;
+
+        if (ips.length > 0) {
+            isp = await this.fetchIpOrganization(ips[0]);
+        }
+
+        return { ips, nameservers, isp };
+    }
+
+    async fetchDnsRecords(domain, type) {
+        const url = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${encodeURIComponent(type)}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error(`DNS-Abfrage fehlgeschlagen (${response.status})`);
+        }
+
+        const data = await response.json();
+        return Array.isArray(data.Answer) ? data.Answer : [];
+    }
+
+    async fetchIpOrganization(ip) {
+        try {
+            const response = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/org/`);
+            if (!response.ok) {
+                return null;
+            }
+            const text = (await response.text()).trim();
+            return text ? text : null;
+        } catch (error) {
+            return null;
+        }
     }
 }
 
