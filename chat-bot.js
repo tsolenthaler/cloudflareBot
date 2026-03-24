@@ -1068,7 +1068,7 @@ Versuche es mit einem dieser Befehle:<br>
                     return `
 <tr>
     <td>${result.domain}</td>
-    <td colspan="4">❌ ${result.error}</td>
+    <td colspan="5">❌ ${result.error}</td>
 </tr>
                     `;
                 }
@@ -1077,6 +1077,7 @@ Versuche es mit einem dieser Befehle:<br>
                 const isp = result.isp || 'N/A';
                 const nsList = result.nameservers.length > 0 ? result.nameservers.join('<br>') : 'N/A';
                 const mxList = result.mxRecords.length > 0 ? result.mxRecords.join('<br>') : 'N/A';
+                const redirect = result.redirect || 'Keine';
 
                 return `
 <tr>
@@ -1085,6 +1086,7 @@ Versuche es mit einem dieser Befehle:<br>
     <td>${isp}</td>
     <td>${nsList}</td>
     <td>${mxList}</td>
+    <td>${redirect}</td>
 </tr>
                 `;
             }).join('');
@@ -1099,6 +1101,7 @@ Versuche es mit einem dieser Befehle:<br>
             <th>Hoster (ISP)</th>
             <th>Nameserver</th>
             <th>MX</th>
+            <th>Weiterleitung</th>
         </tr>
     </thead>
     <tbody>
@@ -1120,10 +1123,11 @@ Versuche es mit einem dieser Befehle:<br>
     }
 
     async resolveDomainInfo(domain) {
-        const [aRecords, nsRecords, mxRecords] = await Promise.all([
+        const [aRecords, nsRecords, mxRecords, redirect] = await Promise.all([
             this.fetchDnsRecords(domain, 'A'),
             this.fetchDnsRecords(domain, 'NS'),
-            this.fetchDnsRecords(domain, 'MX')
+            this.fetchDnsRecords(domain, 'MX'),
+            this.fetchRedirect(domain)
         ]);
 
         const ips = aRecords.map((record) => record.data).filter(Boolean);
@@ -1135,7 +1139,7 @@ Versuche es mit einem dieser Befehle:<br>
             isp = await this.fetchIpOrganization(ips[0]);
         }
 
-        return { ips, nameservers, mxRecords: mxEntries, isp };
+        return { ips, nameservers, mxRecords: mxEntries, isp, redirect };
     }
 
     async fetchDnsRecords(domain, type) {
@@ -1159,6 +1163,30 @@ Versuche es mit einem dieser Befehle:<br>
             const text = (await response.text()).trim();
             return text ? text : null;
         } catch (error) {
+            return null;
+        }
+    }
+
+    async fetchRedirect(domain) {
+        try {
+            const url = `https://${domain}`;
+            const response = await fetch(url, {
+                method: 'HEAD',
+                redirect: 'manual'
+            });
+
+            // Check for redirect status codes (301, 302, 303, 307, 308)
+            if ([301, 302, 303, 307, 308].includes(response.status)) {
+                const location = response.headers.get('location');
+                if (location) {
+                    return `✅ ${location}`;
+                }
+            }
+
+            // If no redirect found
+            return null;
+        } catch (error) {
+            // If there's an error (e.g., domain doesn't exist), return null
             return null;
         }
     }
