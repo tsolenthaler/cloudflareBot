@@ -1170,17 +1170,72 @@ Versuche es mit einem dieser Befehle:<br>
     async fetchRedirect(domain) {
         try {
             const url = `https://${domain}`;
-            const response = await fetch(url, {
-                method: 'HEAD',
-                redirect: 'manual'
-            });
+            let currentUrl = url;
+            let maxRedirects = 5;
+            let followedRedirects = [];
 
-            // Check for redirect status codes (301, 302, 303, 307, 308)
-            if ([301, 302, 303, 307, 308].includes(response.status)) {
-                const location = response.headers.get('location');
-                if (location) {
-                    return `✅ ${location}`;
+            while (maxRedirects > 0) {
+                try {
+                    const response = await fetch(currentUrl, {
+                        method: 'GET',
+                        redirect: 'manual',
+                        timeout: 5000
+                    });
+
+                    // Check for redirect status codes
+                    if ([301, 302, 303, 307, 308].includes(response.status)) {
+                        const location = response.headers.get('location');
+                        if (location) {
+                            // Resolve relative URLs
+                            let nextUrl = location;
+                            if (!location.startsWith('http')) {
+                                const baseUrl = new URL(currentUrl);
+                                nextUrl = new URL(location, baseUrl).href;
+                            }
+
+                            followedRedirects.push(nextUrl);
+                            currentUrl = nextUrl;
+                            maxRedirects--;
+                            continue;
+                        }
+                    }
+
+                    // No redirect found
+                    break;
+                } catch (fetchError) {
+                    // If GET fails, try HEAD as fallback
+                    try {
+                        const response = await fetch(currentUrl, {
+                            method: 'HEAD',
+                            redirect: 'manual',
+                            timeout: 5000
+                        });
+
+                        if ([301, 302, 303, 307, 308].includes(response.status)) {
+                            const location = response.headers.get('location');
+                            if (location) {
+                                let nextUrl = location;
+                                if (!location.startsWith('http')) {
+                                    const baseUrl = new URL(currentUrl);
+                                    nextUrl = new URL(location, baseUrl).href;
+                                }
+                                followedRedirects.push(nextUrl);
+                                currentUrl = nextUrl;
+                                maxRedirects--;
+                                continue;
+                            }
+                        }
+                    } catch (headError) {
+                        // Both methods failed
+                        break;
+                    }
+                    break;
                 }
+            }
+
+            // Return the final redirect chain if any redirects were found
+            if (followedRedirects.length > 0) {
+                return `✅ ${followedRedirects[followedRedirects.length - 1]}`;
             }
 
             // If no redirect found
