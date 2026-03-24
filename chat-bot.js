@@ -1170,78 +1170,114 @@ Versuche es mit einem dieser Befehle:<br>
     async fetchRedirect(domain) {
         try {
             const url = `https://${domain}`;
+
+            // Try using whoer.net redirect checker (reliable external service)
+            try {
+                const checkerUrl = `https://whoer.net/api/redirect?host=${encodeURIComponent(domain)}`;
+                const response = await fetch(checkerUrl);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.redirect_url && data.redirect_url !== url) {
+                        return `✅ ${data.redirect_url}`;
+                    }
+                }
+            } catch (whoerError) {
+                // Whoer.net failed, try alternative method
+            }
+
+            // Try using http-head-request service
+            try {
+                const headCheckerUrl = `https://headers.itb.tech/?url=${encodeURIComponent(url)}`;
+                const response = await fetch(headCheckerUrl);
+                
+                if (response.ok) {
+                    const text = await response.text();
+                    const locationMatch = text.match(/location[:\s]*([^\n<]+)/i);
+                    if (locationMatch && locationMatch[1]) {
+                        const redirectUrl = locationMatch[1].trim();
+                        if (redirectUrl && redirectUrl !== url) {
+                            return `✅ ${redirectUrl}`;
+                        }
+                    }
+                }
+            } catch (headError) {
+                // Head checker failed, try direct fetch
+            }
+
+            // Fallback: Direct fetch approach with proper headers
+            return await this.fetchRedirectDirect(url);
+
+        } catch (error) {
+            console.error(`Fehler beim Abrufen der Weiterleitung für ${domain}:`, error);
+            return null;
+        }
+    }
+
+    async fetchRedirectDirect(url) {
+        try {
             let currentUrl = url;
             let maxRedirects = 5;
-            let followedRedirects = [];
+            let finalRedirect = null;
 
             while (maxRedirects > 0) {
                 try {
                     const response = await fetch(currentUrl, {
-                        method: 'GET',
+                        method: 'HEAD',
                         redirect: 'manual',
-                        timeout: 5000
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                        }
                     });
 
                     // Check for redirect status codes
                     if ([301, 302, 303, 307, 308].includes(response.status)) {
                         const location = response.headers.get('location');
                         if (location) {
-                            // Resolve relative URLs
                             let nextUrl = location;
                             if (!location.startsWith('http')) {
                                 const baseUrl = new URL(currentUrl);
                                 nextUrl = new URL(location, baseUrl).href;
                             }
-
-                            followedRedirects.push(nextUrl);
+                            finalRedirect = nextUrl;
                             currentUrl = nextUrl;
                             maxRedirects--;
                             continue;
                         }
                     }
 
-                    // No redirect found
+                    // Try GET if HEAD didn't work
+                    const getResponse = await fetch(currentUrl, {
+                        method: 'GET',
+                        redirect: 'manual',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    });
+
+                    if ([301, 302, 303, 307, 308].includes(getResponse.status)) {
+                        const location = getResponse.headers.get('location');
+                        if (location) {
+                            let nextUrl = location;
+                            if (!location.startsWith('http')) {
+                                const baseUrl = new URL(currentUrl);
+                                nextUrl = new URL(location, baseUrl).href;
+                            }
+                            finalRedirect = nextUrl;
+                            currentUrl = nextUrl;
+                            maxRedirects--;
+                            continue;
+                        }
+                    }
+
                     break;
                 } catch (fetchError) {
-                    // If GET fails, try HEAD as fallback
-                    try {
-                        const response = await fetch(currentUrl, {
-                            method: 'HEAD',
-                            redirect: 'manual',
-                            timeout: 5000
-                        });
-
-                        if ([301, 302, 303, 307, 308].includes(response.status)) {
-                            const location = response.headers.get('location');
-                            if (location) {
-                                let nextUrl = location;
-                                if (!location.startsWith('http')) {
-                                    const baseUrl = new URL(currentUrl);
-                                    nextUrl = new URL(location, baseUrl).href;
-                                }
-                                followedRedirects.push(nextUrl);
-                                currentUrl = nextUrl;
-                                maxRedirects--;
-                                continue;
-                            }
-                        }
-                    } catch (headError) {
-                        // Both methods failed
-                        break;
-                    }
                     break;
                 }
             }
 
-            // Return the final redirect chain if any redirects were found
-            if (followedRedirects.length > 0) {
-                return `✅ ${followedRedirects[followedRedirects.length - 1]}`;
-            }
-
-            // If no redirect found
-            return null;
+            return finalRedirect ? `✅ ${finalRedirect}` : null;
         } catch (error) {
-            // If there's an error (e.g., domain doesn't exist), return null
             return null;
         }
     }
