@@ -18,6 +18,11 @@ class ChatBot {
     async processMessage(message) {
         const normalizedMessage = message.toLowerCase().trim();
 
+        // SPF record lookup (no token required)
+        if (this.isSpfCommand(message)) {
+            return await this.getSpfRecord(message);
+        }
+
         // Domain-only lookup (no token required)
         if (this.isDomainListMessage(message)) {
             return await this.getDomainInfoTable(message);
@@ -242,6 +247,9 @@ class ChatBot {
 • "Erstelle einen CNAME-Record für www.example.com zu example.com"<br>
 • "Erstelle einen TXT-Record für example.com mit Inhalt 'verification=abc123'"<br>
 • "Lösche DNS-Eintrag [ID] für example.com"<br><br>
+
+<strong>SPF-Lookup:</strong><br>
+• "example.com spf" - SPF-Record abrufen und mit MXToolbox prüfen<br><br>
 
 <strong>Rules/Weiterleitungen:</strong><br>
 • "Liste alle Weiterleitungen für example.com"<br>
@@ -1039,6 +1047,60 @@ Versuche es mit einem dieser Befehle:<br>
 <em>Du kannst auch die Quick-Action-Buttons unter dem Chat verwenden!</em>
             `
         };
+    }
+
+    /**
+     * Check if command is an SPF lookup
+     */
+    isSpfCommand(message) {
+        return /^[a-z0-9]+([-.]?[a-z0-9]+)*\.[a-z]{2,}\s+spf$/i.test(message.trim());
+    }
+
+    /**
+     * Fetch and return SPF record for a domain in a table with MXToolbox link
+     */
+    async getSpfRecord(message) {
+        const match = message.trim().match(/^([a-zA-Z0-9]+([-.]?[a-zA-Z0-9]+)*\.[a-zA-Z]{2,})\s+spf$/i);
+        if (!match) {
+            return this.getDefaultResponse();
+        }
+
+        const domain = match[1].toLowerCase();
+
+        try {
+            const txtRecords = await this.fetchDnsRecords(domain, 'TXT');
+            const spfRecord = txtRecords.find(r => r.data && r.data.toLowerCase().includes('v=spf1'));
+            const spfValue = spfRecord ? spfRecord.data.replace(/^"|"$/g, '') : null;
+            const mxtoolboxUrl = `https://mxtoolbox.com/SuperTool.aspx?action=spf%3a${encodeURIComponent(domain)}&run=toolpage#`;
+
+            const table = `
+<strong>🔎 SPF-Record für ${domain}:</strong><br><br>
+<table class="info-table">
+    <thead>
+        <tr>
+            <th>SPF-Record</th>
+            <th>MXToolbox</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>${spfValue ? `<code>${spfValue}</code>` : '⚠️ Kein SPF-Record gefunden'}</td>
+            <td><a href="${mxtoolboxUrl}" target="_blank">SPF prüfen</a></td>
+        </tr>
+    </tbody>
+</table>
+            `;
+
+            return {
+                type: 'success',
+                message: table
+            };
+        } catch (error) {
+            return {
+                type: 'error',
+                message: `❌ Fehler beim Abrufen des SPF-Records: ${error.message}`
+            };
+        }
     }
 
     /**
